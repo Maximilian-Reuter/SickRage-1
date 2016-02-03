@@ -33,7 +33,7 @@ from sickbeard import history
 from sickbeard import db
 from sickbeard import processTV
 from sickbeard.common import Quality
-from sickbeard.helpers import remove_non_release_groups, isMediaFile
+from sickbeard.helpers import remove_non_release_groups, isMediaFile, isRarFile, moveFile
 from sickrage.helper.common import episode_num, dateTimeFormat
 from sickrage.helper.encoding import ek
 from sickrage.helper.exceptions import ex
@@ -343,6 +343,19 @@ class SubtitlesFinder(object):
         run_post_process = False
         # Check if PP folder is set
         if sickbeard.TV_DOWNLOAD_DIR and ek(os.path.isdir, sickbeard.TV_DOWNLOAD_DIR):
+
+            for root, _, files in ek(os.walk, sickbeard.TV_DOWNLOAD_DIR, topdown=False):
+                rar_files = [x for x in files if isRarFile(x)]
+                video_files = [x for x in files if isMediaFile(x)]
+                if rar_files and not video_files:
+                    logger.log(u'Found rar files in post-process folder: {}'.format(rar_files), logger.DEBUG)
+                    # Dont extract if file is being extracted by other process/script
+                    if sickbeard.UNPACK and u'_UNPACK' not in root:
+                        result = processTV.ProcessResult()
+                        rar_content = processTV.unRAR(root, rar_files, True, result)
+                    else:
+                        logger.log(u'Unpack is disabled. Skipping: {}'.format(rar_files), logger.DEBUG)    
+
             for root, _, files in ek(os.walk, sickbeard.TV_DOWNLOAD_DIR, topdown=False):
                 for video_filename in sorted(files):
                     try:
