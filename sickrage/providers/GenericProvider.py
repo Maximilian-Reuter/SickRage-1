@@ -19,6 +19,7 @@
 
 import re
 import sickbeard
+import subprocess
 
 from base64 import b16encode, b32decode
 from datetime import datetime
@@ -200,7 +201,7 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
                 continue
 
             show_object = parse_result.show
-            quality = self.getQuality(item, anime=show.is_anime)
+            quality = self.get_quality(item, anime=show.is_anime)
             release_group = parse_result.release_group
             version = parse_result.version
             add_cache_entry = False
