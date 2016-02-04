@@ -95,6 +95,7 @@ SNATCHED_PROPER = 9  # qualified with quality
 SUBTITLED = 10  # qualified with quality
 FAILED = 11  # episode downloaded or snatched we don't want
 SNATCHED_BEST = 12  # episode re-downloaded using best quality
+WATCHED = 13
 
 NAMING_REPEAT = 1
 NAMING_EXTEND = 2
@@ -218,7 +219,8 @@ class Quality(object):
         SNATCHED_PROPER: "Snatched (Proper)",
         FAILED: "Failed",
         SNATCHED_BEST: "Snatched (Best)",
-        ARCHIVED: "Archived"
+        ARCHIVED: "Archived",
+        WATCHED: "Watched"
     })
 
     @staticmethod
@@ -644,6 +646,7 @@ class Quality(object):
     FAILED = None
     SNATCHED_BEST = None
     ARCHIVED = None
+    WATCHED = None
 
 Quality.DOWNLOADED = [Quality.compositeStatus(DOWNLOADED, x) for x in Quality.qualityStrings]
 Quality.SNATCHED = [Quality.compositeStatus(SNATCHED, x) for x in Quality.qualityStrings]
@@ -651,6 +654,7 @@ Quality.SNATCHED_PROPER = [Quality.compositeStatus(SNATCHED_PROPER, x) for x in 
 Quality.FAILED = [Quality.compositeStatus(FAILED, x) for x in Quality.qualityStrings]
 Quality.SNATCHED_BEST = [Quality.compositeStatus(SNATCHED_BEST, x) for x in Quality.qualityStrings]
 Quality.ARCHIVED = [Quality.compositeStatus(ARCHIVED, x) for x in Quality.qualityStrings]
+Quality.WATCHED = [Quality.compositeStatus(WATCHED, x) for x in Quality.qualityStrings]
 
 HD720p = Quality.combineQualities([Quality.HDTV, Quality.HDWEBDL, Quality.HDBLURAY], [])
 HD1080p = Quality.combineQualities([Quality.FULLHDTV, Quality.FULLHDWEBDL, Quality.FULLHDBLURAY], [])
@@ -690,7 +694,7 @@ class StatusStrings(NumDict):
     """
     # todo: Make views return Qualities too
 
-    qualities = Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED + Quality.FAILED
+    qualities = Quality.DOWNLOADED + Quality.SNATCHED + Quality.SNATCHED_PROPER + Quality.SNATCHED_BEST + Quality.ARCHIVED + Quality.FAILED + Quality.WATCHED
 
     def __missing__(self, key):
         """
@@ -726,7 +730,8 @@ statusStrings = StatusStrings({
     IGNORED: "Ignored",
     SUBTITLED: "Subtitled",
     FAILED: "Failed",
-    SNATCHED_BEST: "Snatched (Best)"
+    SNATCHED_BEST: "Snatched (Best)",
+    WATCHED: "Watched"
 })
 
 
@@ -738,7 +743,7 @@ class Overview(object):  # pylint: disable=too-few-public-methods
     SKIPPED = SKIPPED  # 5
     SNATCHED_PROPER = SNATCHED_PROPER  # 9
     SNATCHED_BEST = SNATCHED_BEST  # 12
-
+    WATCHED = WATCHED
     # Should suffice!
     QUAL = 50
 
@@ -752,7 +757,8 @@ class Overview(object):  # pylint: disable=too-few-public-methods
         # we can give these a different class later, otherwise
         # breaks checkboxes in displayShow for showing different statuses
         SNATCHED_BEST: "snatched",
-        SNATCHED_PROPER: "snatched"
+        SNATCHED_PROPER: "snatched",
+        WATCHED: "watched"
     })
 
 countryList = {

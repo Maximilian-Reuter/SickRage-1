@@ -498,7 +498,7 @@ def already_postprocessed(dirName, videofile, force, result):  # pylint: disable
         search_sql += " AND tv_episodes.showid=%s AND tv_episodes.season=%s AND tv_episodes.episode=%s" % \
             (parse_result.show.indexerid, parse_result.season_number, parse_result.episode_numbers[0])
 
-    search_sql += " AND tv_episodes.status IN (" + ",".join([str(x) for x in common.Quality.DOWNLOADED]) + ")"
+    search_sql += " AND tv_episodes.status IN (" + ",".join([str(x) for x in common.Quality.DOWNLOADED + common.Quality.WATCHED]) + ")"
     search_sql += " AND history.resource LIKE ? LIMIT 1"
     sql_result = main_db_con.select(search_sql, ['%' + videofile])
     if sql_result:

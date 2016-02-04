@@ -1010,6 +1010,9 @@ ul.tags li a{
     background-color: #bedeed;
 }
 .good {
+    background-color: #99ffea;
+}
+.watched {
     background-color: #c3e3c8;
 }
 .qual {
@@ -1031,6 +1034,10 @@ span.skipped {
     border: 1px solid #1d5068;
 }
 span.good {
+    color: #008066;
+    border: 1px solid #008066;
+}
+span.watched {
     color: #295730;
     border: 1px solid #295730;
 }

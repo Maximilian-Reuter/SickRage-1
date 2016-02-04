@@ -125,7 +125,7 @@
         if not cur_snatched:
             cur_snatched = 0
 
-        cur_downloaded = show_stat[curShow.indexerid]['ep_downloaded']
+        cur_downloaded = show_stat[curShow.indexerid]['ep_watched']
         if not cur_downloaded:
             cur_downloaded = 0
 

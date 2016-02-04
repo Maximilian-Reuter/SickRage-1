@@ -7,7 +7,7 @@
     from sickbeard import subtitles, sbdatetime, network_timezones
     import sickbeard.helpers
 
-    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, FAILED, DOWNLOADED
+    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, FAILED, DOWNLOADED, WATCHED
     from sickbeard.common import Quality, qualityPresets, statusStrings, Overview
     from sickbeard.helpers import anon_url
     from sickrage.helper.common import pretty_file_size
@@ -235,8 +235,8 @@
         % if not sickbeard.USE_FAILED_DOWNLOADS:
         <% availableStatus.remove(FAILED) %>
         % endif
-        % for curStatus in availableStatus + Quality.DOWNLOADED + Quality.ARCHIVED:
-            % if curStatus not in [DOWNLOADED, ARCHIVED]:
+        % for curStatus in availableStatus + Quality.DOWNLOADED + Quality.ARCHIVED + Quality.WATCHED:
+            % if curStatus not in [DOWNLOADED, ARCHIVED, WATCHED]:
             <option value="${curStatus}">${statusStrings[curStatus]}</option>
             % endif
         % endfor
@@ -254,6 +254,7 @@
             <label for="wanted"><span class="wanted"><input type="checkbox" id="wanted" checked="checked" /> Wanted: <b>${epCounts[Overview.WANTED]}</b></span></label>
             <label for="qual"><span class="qual"><input type="checkbox" id="qual" checked="checked" /> Allowed: <b>${epCounts[Overview.QUAL]}</b></span></label>
             <label for="good"><span class="good"><input type="checkbox" id="good" checked="checked" /> Preferred: <b>${epCounts[Overview.GOOD]}</b></span></label>
+            <label for="watched"><span class="watched"><input type="checkbox" id="watched" checked="checked" /> Watched: <b>${epCounts[Overview.WATCHED]}</b></span></label>
             <label for="skipped"><span class="skipped"><input type="checkbox" id="skipped" checked="checked" /> Skipped: <b>${epCounts[Overview.SKIPPED]}</b></span></label>
             <label for="snatched"><span class="snatched"><input type="checkbox" id="snatched" checked="checked" /> Snatched: <b>${total_snatched}</b></span></label>
         </div>
@@ -447,7 +448,11 @@
             % else:
                 <img src="${srRoot}/images/info32.png" width="16" height="16" class="plotInfoNone" alt="" />
             % endif
-            ${epResult["name"]}
+            % if epResult["location"] != "":
+                <a class="epDisplay" href="displayEpisode?show=${show.indexerid}&amp;season=${epResult["season"]}&amp;episode=${epResult["episode"]}">${epResult["name"]}</a>
+            % else:
+                ${epResult["name"]}
+            % endif
             </td>
             <td class="col-name">${epLoc}</td>
             <td class="col-ep">

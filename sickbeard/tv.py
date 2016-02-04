@@ -1303,7 +1303,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
         elif ep_status in (SKIPPED, IGNORED):
             return Overview.SKIPPED
         elif ep_status in Quality.ARCHIVED:
-            return Overview.GOOD
+            return Overview.WATCHED
         elif ep_status in Quality.FAILED:
             return Overview.WANTED
         elif ep_status in Quality.SNATCHED:
@@ -1322,6 +1322,8 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
                 return Overview.QUAL
             else:
                 return Overview.GOOD
+        elif epStatus in Quality.WATCHED:
+            return Overview.WATCHED
         else:
             logger.log(u'Could not parse episode status into a valid overview status: %s' % epStatus, logger.ERROR)
 
