@@ -579,8 +579,9 @@ NEWZNAB_DATA = None
 
 
 def get_backlog_cycle_time():
-    cycletime = DAILYSEARCH_FREQUENCY * 2 + 7
-    return max([cycletime, 720])
+    #cycletime = DAILYSEARCH_FREQUENCY * 2 + 7
+    cycletime = 10
+    return max([cycletime, 10])
 
 
 def initialize(consoleLogging=True):

@@ -518,9 +518,7 @@ def searchProviders(show, episodes, manualSearch=False, downCurQuality=False):  
                 logger.log(u"Content-Encoding was gzip, but content was not compressed while searching %s. Error: %r" % (curProvider.name, ex(e)), logger.DEBUG)
                 break
             except Exception as e:
-                logger.log(traceback.format_exc(), logger.DEBUG)
-                print(e)
-                if e.errno != errno.ECONNRESET:
+                if not hasattr(e,"errno") or (hasattr(e,"errno") and e.errno != errno.ECONNRESET) :
                     logger.log(u"Unknown exception while searching %s. Error: %r" % (curProvider.name, ex(e)), logger.ERROR)
                     logger.log(traceback.format_exc(), logger.DEBUG)
                 else:

@@ -452,9 +452,9 @@ class Quality(object):
         result = Quality.scene_quality(name, anime)
 
         # if its a quality known by old_scene_quality assert they match
-        if result <= Quality.FULLHDBLURAY or result == Quality.UNKNOWN:
-            old = Quality.old_scene_quality(name, anime)
-            assert old == result, 'Old quality does not match new: %s != %s : %s' % (Quality.qualityStrings[old], Quality.qualityStrings[result], name)
+        #if result <= Quality.FULLHDBLURAY or result == Quality.UNKNOWN:
+        #    old = Quality.old_scene_quality(name, anime)
+        #    assert old == result, 'Old quality does not match new: %s != %s : %s' % (Quality.qualityStrings[old], Quality.qualityStrings[result], name)
 
         return result
 
