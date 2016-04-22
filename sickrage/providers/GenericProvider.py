@@ -344,7 +344,7 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
     def get_quality(self, item, anime=False):
         (title, _) = self._get_title_and_url(item)
         quality = Quality.sceneQuality(title, anime)
-
+        logger.log(u"Parsed quality : %s" %quality, logger.DEBUG) 
         height=""
         logger.log(u"Check if size minimums should apply", logger.DEBUG)
         if quality == Quality.FULLHDTV or quality == Quality.FULLHDWEBDL or quality == Quality.FULLHDBLURAY:
@@ -378,7 +378,7 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
                         if (height=="1080p" and rlsSize <= 700000000) or (height=="720p" and rlsSize <= 500000000):
                             quality = Quality.UNKNOWN
 
-                
+                logger.log(u"Quality set to: %s" %quality, logger.DEBUG) 
         return quality
 
     def get_result(self, episodes):

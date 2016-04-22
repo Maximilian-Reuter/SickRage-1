@@ -449,7 +449,11 @@
                 <img src="${srRoot}/images/info32.png" width="16" height="16" class="plotInfoNone" alt="" />
             % endif
             % if epResult["location"] != "":
-                <a class="epDisplay" href="displayEpisode?show=${show.indexerid}&amp;season=${epResult["season"]}&amp;episode=${epResult["episode"]}">${epResult["name"]}</a>
+                % if epResult["name"] != "":
+                    <a class="epDisplay" href="displayEpisode?show=${show.indexerid}&amp;season=${epResult["season"]}&amp;episode=${epResult["episode"]}">${epResult["name"]}</a>
+                % else:
+                    <a class="epDisplay" href="displayEpisode?show=${show.indexerid}&amp;season=${epResult["season"]}&amp;episode=${epResult["episode"]}">${epResult["location"]}</a>
+                % endif
             % else:
                 ${epResult["name"]}
             % endif

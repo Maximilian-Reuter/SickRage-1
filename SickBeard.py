@@ -116,7 +116,7 @@ class SickRage(object):
         # web server constants
         self.web_server = None
         self.forced_port = None
-        self.no_launch = False
+        self.no_launch = True
 
         self.web_host = '0.0.0.0'
         self.start_port = sickbeard.WEB_PORT
