@@ -27,6 +27,7 @@ import datetime
 import traceback
 import gettext
 import ast
+import inspect
 
 from requests.compat import urljoin
 import markdown2
@@ -2005,7 +2006,9 @@ class Home(WebRoot):
     def displayEpisode(self, show=None, season=None, episode=None, direct=False):
 
         # retrieve the episode object and fail if we can't get one
-        ep_obj = self._getEpisode(show, season, episode)
+        ep_obj, error_msg = self._getEpisode(show, season, episode)
+        if ep_obj:
+            logger.log(u"ep is empty",logger.DEBUG)
         sql_l = []
         if isinstance(ep_obj, str):
             return json.dumps({'result': 'failure'})
