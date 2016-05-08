@@ -358,6 +358,7 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
                     logger.log(u"Rls has no codec, 'x264' set as default", logger.DEBUG)
                     
                 logger.log(u"Rls has codec, codec: %s" %rlsCodec, logger.DEBUG) 
+                logger.log(u"Rls has runtime, runtime: %s" %self.show.runtime, logger.DEBUG) 
                 if "265" in rlsCodec or rlsCodec== "hevc":
                     if self.show.runtime > 30:
                         if (height=="1080p" and rlsSize <= 400000000) or (height=="720p" and rlsSize <= 200000000):
