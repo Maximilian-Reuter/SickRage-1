@@ -1,14 +1,19 @@
 # -*- coding: utf-8 -*-
+import codecs
 import logging
 import os
 
 import chardet
-from codecs import lookup
 import pysrt
 
-from .video import Episode, Movie, sanitize, sanitize_release_group
+from .video import Episode, Movie
+from .utils import sanitize, sanitize_release_group
+
 
 logger = logging.getLogger(__name__)
+
+#: Subtitle extensions
+SUBTITLE_EXTENSIONS = ('.srt', '.sub', '.smi', '.txt', '.ssa', '.ass', '.mpl')
 
 
 class Subtitle(object):
@@ -19,7 +24,7 @@ class Subtitle(object):
     :param bool hearing_impaired: whether or not the subtitle is hearing impaired.
     :param page_link: URL of the web page from which the subtitle can be downloaded.
     :type page_link: str
-    :param encoding: Text encoding of the subtitle
+    :param encoding: Text encoding of the subtitle.
     :type encoding: str
 
     """
@@ -40,24 +45,23 @@ class Subtitle(object):
         self.content = None
 
         #: Encoding to decode with when accessing :attr:`text`
+        self.encoding = None
+
+        # validate the encoding
         if encoding:
             try:
-                # set encoding to canonical codec name
-                self.encoding = lookup(encoding).name
+                self.encoding = codecs.lookup(encoding).name
             except (TypeError, LookupError):
-                logger.debug('Unsupported encoding "%s", setting to None', encoding)
-                self.encoding = None
-        else:
-            self.encoding = None
+                logger.debug('Unsupported encoding %s', encoding)
 
     @property
     def id(self):
-        """Unique identifier of the subtitle."""
+        """Unique identifier of the subtitle"""
         raise NotImplementedError
 
     @property
     def text(self):
-        """Content as string.
+        """Content as string
 
         If :attr:`encoding` is None, the encoding is guessed with :meth:`guess_encoding`
 
@@ -65,11 +69,10 @@ class Subtitle(object):
         if not self.content:
             return
 
-        try:
+        if self.encoding:
             return self.content.decode(self.encoding, errors='replace')
-        except (TypeError, LookupError):
-            # Failback to guess_encoding if empty or unknown encoding provided
-            return self.content.decode(self.guess_encoding(), errors='replace')
+
+        return self.content.decode(self.guess_encoding(), errors='replace')
 
     def is_valid(self):
         """Check if a :attr:`text` is a valid SubRip format.
@@ -220,8 +223,8 @@ def guess_matches(video, guess, partial=False):
         if video.title and 'title' in guess and sanitize(guess['title']) == sanitize(video.title):
             matches.add('title')
     # release_group
-    if video.release_group and 'release_group' in guess \
-            and sanitize_release_group(guess['release_group']) == sanitize_release_group(video.release_group):
+    if (video.release_group and 'release_group' in guess and
+            sanitize_release_group(guess['release_group']) == sanitize_release_group(video.release_group)):
         matches.add('release_group')
     # resolution
     if video.resolution and 'screen_size' in guess and guess['screen_size'] == video.resolution:

@@ -1,14 +1,6 @@
 <%inherit file="/layouts/main.mako"/>
 <%!
-    import datetime
-    import locale
     import sickbeard
-    from sickbeard.common import SKIPPED, WANTED, UNAIRED, ARCHIVED, IGNORED, SNATCHED, SNATCHED_PROPER, SNATCHED_BEST, FAILED
-    from sickbeard.common import Quality, qualityPresets, statusStrings, qualityPresetStrings, cpu_presets
-    from sickbeard.sbdatetime import sbdatetime, date_presets, time_presets
-    from sickbeard import config
-    from sickbeard import metadata
-    from sickbeard.metadata.generic import GenericMetadata
 %>
 <%block name="content">
 % if not header is UNDEFINED:
@@ -27,19 +19,19 @@
         <form name="configForm" method="post" action="backuprestore">
             <div id="config-components">
                 <ul>
-                    <li><a href="#backup">Backup</a></li>
-                    <li><a href="#restore">Restore</a></li>
+                    <li><a href="#backup">${_('Backup')}</a></li>
+                    <li><a href="#restore">${_('Restore')}</a></li>
                 </ul>
 
                 <div id="backup" class="component-group clearfix">
                     <div class="component-group-desc">
-                        <h3>Backup</h3>
-                        <p><b>Backup your main database file and config.</b></p>
+                        <h3>${_('Backup')}</h3>
+                        <p><b>${_('Backup your main database file and config.')}</b></p>
                     </div>
 
                     <fieldset class="component-group-list">
                         <div class="field-pair">
-                            Select the folder you wish to save your backup file to:
+                            ${_('Select the folder you wish to save your backup file to')}:
 
                             <br><br>
 
@@ -56,18 +48,18 @@
 
                 <div id="restore" class="component-group clearfix">
                     <div class="component-group-desc">
-                        <h3>Restore</h3>
-                        <p><b>Restore your main database file and config.</b></p>
+                        <h3>${_('Restore')}</h3>
+                        <p><b>${_('Restore your main database file and config.')}</b></p>
                     </div>
 
                     <fieldset class="component-group-list">
                         <div class="field-pair">
-                            Select the backup file you wish to restore:
+                            ${_('Select the backup file you wish to restore')}:
 
                             <br><br>
 
                             <input type="text" name="backupFile" id="backupFile" class="form-control input-sm input350" autocapitalize="off" />
-                            <input class="btn btn-inline" type="button" value="Restore" id="Restore" />
+                            <input class="btn btn-inline" type="button" value="${_('Restore')}" id="Restore" />
 
                             <br>
 

@@ -122,7 +122,7 @@ class TVCache(object):
                     if ci is not None:
                         cl.append(ci)
 
-                if len(cl) > 0:
+                if cl:
                     cache_db_con = self._getDB()
                     cache_db_con.mass_action(cl)
 
@@ -132,7 +132,9 @@ class TVCache(object):
             logger.log(u"Error while searching " + self.provider.name + ", skipping: " + repr(e), logger.DEBUG)
 
     def getRSSFeed(self, url, params=None):
-        return getFeed(url, params=params, request_hook=self.provider.get_url)
+        if self.provider.login():
+            return getFeed(url, params=params, request_hook=self.provider.get_url)
+        return {'entries': []}
 
     @staticmethod
     def _translateTitle(title):
@@ -242,7 +244,7 @@ class TVCache(object):
                 parse_result = NameParser(showObj=showObj).parse(name)
                 parse_result.qualitiy = provider.get_quality(item)
             except (InvalidNameException, InvalidShowException) as error:
-                logger.log(u"{}".format(error), logger.DEBUG)
+                logger.log(u"{0}".format(error), logger.DEBUG)
                 return None
 
             if not parse_result or not parse_result.series_name:
@@ -278,7 +280,7 @@ class TVCache(object):
 
     def searchCache(self, episode, manualSearch=False, downCurQuality=False):
         neededEps = self.findNeededEpisodes(episode, manualSearch, downCurQuality)
-        return neededEps[episode] if episode in neededEps else []
+        return neededEps.get(episode, [])
 
     def listPropers(self, date=None):
         cache_db_con = self._getDB()
@@ -313,13 +315,13 @@ class TVCache(object):
 
         # for each cache entry
         for curResult in sql_results:
-            # ignored/required words, and non-tv junk
-            if not show_name_helpers.filterBadReleases(curResult["name"]):
-                continue
-
             # get the show object, or if it's not one of our shows then ignore it
             showObj = Show.find(sickbeard.showList, int(curResult["indexerid"]))
             if not showObj:
+                continue
+
+            # ignored/required words, and non-tv junk
+            if not show_name_helpers.filterBadReleases(curResult["name"], show=showObj):
                 continue
 
             # skip if provider is anime only and show is not anime

@@ -52,14 +52,30 @@ def containsAtLeastOneWord(name, words):
     """
     if isinstance(words, basestring):
         words = words.split(',')
-    items = [(re.compile(r'(^|[\W_])%s($|[\W_])' % re.escape(word.strip()), re.I), word.strip()) for word in words]
+
+    items = [(re.compile(r'(^|[\W_]){0}($|[\W_])'.format(re.escape(word.strip())), re.I), word.strip()) for word in words]
     for regexp, word in items:
         if regexp.search(name):
             return word
     return False
 
 
-def filterBadReleases(name, parse=True):
+def containsAllWords(name, words):
+    """
+    Filters out results based on filter_words
+
+    name: name to check
+    words : string of words separated by a ',' or list of words
+
+    Returns: False if the name doesn't contain any word of words list, or the found word from the list.
+    """
+    if isinstance(words, basestring):
+        words = words.split(',')
+
+    return all(re.compile(r'(^|[\W_]){0}($|[\W_])'.format(re.escape(word.strip())), re.I).search(name) for word in words)
+
+
+def filterBadReleases(name, parse=True, show=None):
     """
     Filters out non-english and just all-around stupid releases by comparing them
     to the resultFilters contents.
@@ -73,30 +89,43 @@ def filterBadReleases(name, parse=True):
         if parse:
             NameParser().parse(name)
     except InvalidNameException as error:
-        logger.log(u"{}".format(error), logger.DEBUG)
+        logger.log(u"{0}".format(error), logger.DEBUG)
         return False
     except InvalidShowException:
         pass
     # except InvalidShowException as error:
-    #    logger.log(u"{}".format(error), logger.DEBUG)
+    #    logger.log(u"{0}".format(error), logger.DEBUG)
     #    return False
 
     # if any of the bad strings are in the name then say no
     ignore_words = list(resultFilters)
     if sickbeard.IGNORE_WORDS:
         ignore_words.extend(sickbeard.IGNORE_WORDS.split(','))
+
+    if show:
+        if show.rls_ignore_words:
+            ignore_words.extend(show.rls_ignore_words.split(','))
+        if show.rls_require_words:
+            ignore_words = list(set(ignore_words).difference(x.strip() for x in show.rls_require_words.split(',') if x.strip()))
+
     word = containsAtLeastOneWord(name, ignore_words)
     if word:
-        logger.log(u"Invalid scene release: " + name + " contains " + word + ", ignoring it", logger.DEBUG)
+        logger.log(u"Release: " + name + " contains " + word + ", ignoring it", logger.INFO)
         return False
 
     # if any of the good strings aren't in the name then say no
-    if sickbeard.REQUIRE_WORDS:
-        require_words = sickbeard.REQUIRE_WORDS
-        if not containsAtLeastOneWord(name, require_words):
-            logger.log(u"Invalid scene release: " + name + " doesn't contain any of " + sickbeard.REQUIRE_WORDS +
-                       ", ignoring it", logger.DEBUG)
-            return False
+
+    require_words = sickbeard.REQUIRE_WORDS.split(',') if sickbeard.REQUIRE_WORDS else []
+    if show:
+        if show.rls_ignore_words:
+            require_words = list(set(require_words).difference(x.strip() for x in show.rls_ignore_words.split(',') if x.strip()))
+        if show.rls_require_words:
+            require_words.extend(show.rls_require_words.split(','))
+
+    if require_words and not containsAllWords(name, require_words):
+        logger.log(u"Release: " + name + " doesn't contain any of " + ', '.join(set(require_words)) +
+                   ", ignoring it", logger.INFO)
+        return False
 
     return True
 
@@ -158,7 +187,7 @@ def determineReleaseName(dir_name=None, nzb_name=None):
 
     for search in file_types:
 
-        reg_expr = re.compile(fnmatch.translate(search), re.IGNORECASE)
+        reg_expr = re.compile(fnmatch.translate(search), re.I)
         files = [file_name for file_name in ek(os.listdir, dir_name) if
                  ek(os.path.isfile, ek(os.path.join, dir_name, file_name))]
 

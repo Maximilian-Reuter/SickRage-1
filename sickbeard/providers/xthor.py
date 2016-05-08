@@ -20,7 +20,6 @@
 
 import re
 
-from requests.compat import urlencode
 from requests.utils import dict_from_cookiejar
 
 from sickbeard import logger, tvcache
@@ -42,7 +41,6 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
         self.password = None
 
         # Torrent Stats
-        self.ratio = None
         self.minseed = None
         self.minleech = None
         self.freeleech = None
@@ -70,7 +68,7 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
             'submitme': 'X'
         }
 
-        response = self.get_url(self.urls['login'], post_data=login_params, timeout=30)
+        response = self.get_url(self.urls['login'], post_data=login_params, returns='text')
         if not response:
             logger.log(u"Unable to connect to provider", logger.WARNING)
             return False
@@ -81,7 +79,7 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
 
         return True
 
-    def search(self, search_strings, age=0, ep_obj=None):  # pylint: disable=too-many-locals, too-many-branches
+    def search(self, search_strings, age=0, ep_obj=None):  # pylint: disable=too-many-locals, too-many-branches, too-many-statements
         results = []
         if not self.login():
             return results
@@ -119,7 +117,7 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
 
         for mode in search_strings:
             items = []
-            logger.log(u"Search Mode: {}".format(mode), logger.DEBUG)
+            logger.log(u"Search Mode: {0}".format(mode), logger.DEBUG)
 
             # Sorting: 1: Name, 3: Comments, 5: Size, 6: Completed, 7: Seeders, 8: Leechers (4: Time ?)
             search_params['sort'] = (7, 4)[mode == 'RSS']
@@ -127,14 +125,12 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
             for search_string in search_strings[mode]:
 
                 if mode != 'RSS':
-                    logger.log(u"Search string: {}".format(search_string.decode("utf-8")),
-                                                   logger.DEBUG)
+                    logger.log(u"Search string: {0}".format
+                               (search_string.decode("utf-8")), logger.DEBUG)
 
                 search_params['search'] = search_string
-                search_url = self.urls['search'] + urlencode(search_params)
-                logger.log(u"Search URL: %s" % search_url, logger.DEBUG)
 
-                data = self.get_url(search_url)
+                data = self.get_url(self.urls['search'], params=search_params, returns='text')
                 if not data:
                     logger.log(u"No data returned from provider", logger.DEBUG)
                     continue
@@ -143,7 +139,7 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
                     torrent_table = html.find("table", class_="table2 table-bordered2")
                     torrent_rows = []
                     if torrent_table:
-                        torrent_rows = torrent_table.find_all("tr")
+                        torrent_rows = torrent_table("tr")
 
                     # Continue only if at least one Release is found
                     if len(torrent_rows) < 2:
@@ -151,11 +147,11 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
                         continue
 
                     # Catégorie, Nom du Torrent, (Download), (Bookmark), Com., Taille, Compl�t�, Seeders, Leechers
-                    labels = [process_column_header(label) for label in torrent_rows[0].find_all('td')]
+                    labels = [process_column_header(label) for label in torrent_rows[0]('td')]
 
                     # Skip column headers
                     for row in torrent_rows[1:]:
-                        cells = row.find_all('td')
+                        cells = row('td')
                         if len(cells) < len(labels):
                             continue
 
@@ -172,16 +168,16 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
                             if seeders < self.minseed or leechers < self.minleech:
                                 if mode != 'RSS':
                                     logger.log(u"Discarding torrent because it doesn't meet the"
-                                               u" minimum seeders or leechers: {} (S:{} L:{})".format
+                                               u" minimum seeders or leechers: {0} (S:{1} L:{2})".format
                                                (title, seeders, leechers), logger.DEBUG)
                                 continue
 
                             torrent_size = cells[labels.index('Taille')].get_text()
                             size = convert_size(torrent_size, units=units) or -1
 
-                            item = title, download_url, size, seeders, leechers
+                            item = {'title': title, 'link': download_url, 'size': size, 'seeders': seeders, 'leechers': leechers, 'hash': ''}
                             if mode != 'RSS':
-                                logger.log(u"Found result: {} with {} seeders and {} leechers".format
+                                logger.log(u"Found result: {0} with {1} seeders and {2} leechers".format
                                            (title, seeders, leechers), logger.DEBUG)
 
                             items.append(item)
@@ -189,12 +185,10 @@ class XthorProvider(TorrentProvider):  # pylint: disable=too-many-instance-attri
                             continue
 
             # For each search mode sort all the items by seeders if available
-            items.sort(key=lambda tup: tup[3], reverse=True)
+            items.sort(key=lambda d: try_int(d.get('seeders', 0)), reverse=True)
             results += items
 
         return results
 
-    def seed_ratio(self):
-        return self.ratio
 
 provider = XthorProvider()

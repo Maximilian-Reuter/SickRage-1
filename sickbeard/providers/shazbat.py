@@ -36,7 +36,6 @@ class ShazbatProvider(TorrentProvider):
         self.supports_backlog = False
 
         self.passkey = None
-        self.ratio = None
         self.options = None
 
         self.cache = ShazbatCache(self, min_time=20)
@@ -58,13 +57,10 @@ class ShazbatProvider(TorrentProvider):
     def _checkAuthFromData(self, data):
         if not self.passkey:
             self._check_auth()
-        elif not (data['entries'] and data['feed']):
+        elif data.get('bozo') == 1 and not (data['entries'] and data['feed']):
             logger.log('Invalid username or password. Check your settings', logger.WARNING)
 
         return True
-
-    def seed_ratio(self):
-        return self.ratio
 
 
 class ShazbatCache(tvcache.TVCache):

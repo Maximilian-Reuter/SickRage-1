@@ -24,9 +24,6 @@ import datetime
 import operator
 import threading
 import traceback
-import errno
-from socket import timeout as SocketTimeout
-from requests import exceptions as requests_exceptions
 import sickbeard
 
 from sickbeard import db
@@ -66,9 +63,9 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
             hours, remainder = divmod(run_in.seconds, 3600)
             minutes, seconds = divmod(remainder, 60)
             run_at = u", next check in approx. " + (
-                "%dh, %dm" % (hours, minutes) if 0 < hours else "%dm, %ds" % (minutes, seconds))
+                "{0:d}h, {1:d}m".format(hours, minutes) if 0 < hours else "{0:d}m, {1:d}s".format(minutes, seconds))
 
-        logger.log(u"Completed the search for new propers%s" % run_at)
+        logger.log(u"Completed the search for new propers{0}".format(run_at))
 
         self.amActive = False
 
@@ -93,27 +90,9 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
             except AuthException as e:
                 logger.log(u"Authentication error: " + ex(e), logger.DEBUG)
                 continue
-            except (SocketTimeout, TypeError) as e:
-                logger.log(u"Connection timed out (sockets) while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.DEBUG)
-                continue
-            except (requests_exceptions.HTTPError, requests_exceptions.TooManyRedirects) as e:
-                logger.log(u"HTTP error while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.DEBUG)
-                continue
-            except requests_exceptions.ConnectionError as e:
-                logger.log(u"Connection error while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.DEBUG)
-                continue
-            except requests_exceptions.Timeout as e:
-                logger.log(u"Connection timed out while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.DEBUG)
-                continue
-            except requests_exceptions.ContentDecodingError:
-                logger.log(u"Content-Encoding was gzip, but content was not compressed while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.DEBUG)
-                continue
             except Exception as e:
-                if hasattr(e, 'errno') and e.errno == errno.ECONNRESET:
-                    logger.log(u"Connection reseted by peer accessing {}".format(curProvider.name), logger.DEBUG)
-                else:
-                    logger.log(u"Unknown exception while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.ERROR)
-                    logger.log(traceback.format_exc(), logger.DEBUG)
+                logger.log(u"Exception while searching propers in " + curProvider.name + ", skipping: " + ex(e), logger.ERROR)
+                logger.log(traceback.format_exc(), logger.DEBUG)
                 continue
 
             # if they haven't been added by a different provider than add the proper to the list
@@ -139,7 +118,7 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
             try:
                 parse_result = NameParser(False).parse(curProper.name)
             except (InvalidNameException, InvalidShowException) as error:
-                logger.log(u"{}".format(error), logger.DEBUG)
+                logger.log(u"{0}".format(error), logger.DEBUG)
                 continue
 
             if not parse_result.series_name:
@@ -215,8 +194,7 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
                     continue
 
             # if the show is in our list and there hasn't been a proper already added for that particular episode then add it to our list of propers
-            if bestResult.indexerid != -1 and (bestResult.indexerid, bestResult.season, bestResult.episode) not in map(
-                    operator.attrgetter('indexerid', 'season', 'episode'), finalPropers):
+            if bestResult.indexerid != -1 and (bestResult.indexerid, bestResult.season, bestResult.episode) not in {(p.indexerid, p.season, p.episode) for p in finalPropers}:
                 logger.log(u"Found a proper that we need: " + str(bestResult.name))
                 finalPropers.append(bestResult)
 
@@ -243,7 +221,7 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
                  historyLimit.strftime(History.date_format)])
 
             # if we didn't download this episode in the first place we don't know what quality to use for the proper so we can't do it
-            if len(historyResults) == 0:
+            if not historyResults:
                 logger.log(
                     u"Unable to find an original history entry for proper " + curProper.name + " so I'm not downloading it.")
                 continue
@@ -296,7 +274,7 @@ class ProperFinder(object):  # pylint: disable=too-few-public-methods
         main_db_con = db.DBConnection()
         sql_results = main_db_con.select("SELECT last_proper_search FROM info")
 
-        if len(sql_results) == 0:
+        if not sql_results:
             main_db_con.action("INSERT INTO info (last_backlog, last_indexer, last_proper_search) VALUES (?,?,?)",
                                [0, 0, str(when)])
         else:

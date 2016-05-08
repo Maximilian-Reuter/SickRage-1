@@ -936,6 +936,36 @@ var SICKRAGE = {
                     $("#pushbullet_device").val($("#pushbullet_device_list").val());
                     $('#testPushbullet-result').html("Don't forget to save your new pushbullet settings.");
                 });
+
+                $.get(srRoot + "/home/getPushbulletChannels", {
+                    'api': pushbullet.api
+                }, function (data) {
+                    pushbullet.channels = $.parseJSON(data).channels;
+                    pushbullet.currentChannel = $("#pushbullet_channel").val();
+                    $("#pushbullet_channel_list").html('');
+                    if (pushbullet.channels.length > 0) {
+                        for (var i = 0, len = pushbullet.channels.length; i < len; i++) {
+                            if (pushbullet.channels[i].active === true) {
+                                $("#pushbullet_channel_list").append('<option value="' + pushbullet.channels[i].tag + '" selected>' + pushbullet.channels[i].name + '</option>');
+                            } else {
+                                $("#pushbullet_channel_list").append('<option value="' + pushbullet.channels[i].tag + '">' + pushbullet.channels[i].name + '</option>');
+                            }
+                        }
+                        $("#pushbullet_channel_list").prepend('<option value="" ' + (pushbullet.currentChannel ? 'selected' : '') + '>No Channel</option>');
+                        $('#pushbullet_channel_list').prop('disabled', false);
+                    } else {
+                        $("#pushbullet_channel_list").prepend('<option value>No Channels</option>');
+                        $("#pushbullet_channel_list").prop('disabled', true);
+                    }
+                    if (msg) {
+                        $('#testPushbullet-result').html(msg);
+                    }
+
+                    $("#pushbullet_channel_list").on('change', function () {
+                        $("#pushbullet_channel").val($("#pushbullet_channel_list").val());
+                        $('#testPushbullet-result').html("Don't forget to save your new pushbullet settings.");
+                    });
+                });
             }
 
             $('#getPushbulletDevices').on('click', function(){
@@ -1567,7 +1597,10 @@ var SICKRAGE = {
                     sabnzbdSettings = '#sabnzbd_settings',
                     testSABnzbd = '#testSABnzbd',
                     testSABnzbdResult = '#testSABnzbd_result',
-                    nzbgetSettings = '#nzbget_settings';
+                    nzbgetSettings = '#nzbget_settings',
+                    downloadStationSettings = '#download_station_settings',
+                    testDSM = '#testDSM',
+                    testDSMResult = '#testDSM_result';
 
                 $('#nzb_method_icon').removeClass (function (index, css) {
                     return (css.match (/(^|\s)add-client-icon-\S+/g) || []).join(' ');
@@ -1579,11 +1612,18 @@ var SICKRAGE = {
                 $(testSABnzbd).hide();
                 $(testSABnzbdResult).hide();
                 $(nzbgetSettings).hide();
+                $(downloadStationSettings).hide();
+                $(testDSM).hide();
+                $(testDSMResult).hide();
 
                 if (selectedProvider.toLowerCase() === 'blackhole') {
                     $(blackholeSettings).show();
                 } else if (selectedProvider.toLowerCase() === 'nzbget') {
                     $(nzbgetSettings).show();
+                } else if (selectedProvider.toLowerCase() === 'download_station') {
+                    $(downloadStationSettings).show();
+                    $(testDSM).show();
+                    $(testDSMResult).show();
                 } else {
                     $(sabnzbdSettings).show();
                     $(testSABnzbd).show();
@@ -1745,6 +1785,22 @@ var SICKRAGE = {
                 });
             });
 
+            $('#testDSM').on('click', function(){
+                var dsm = {};
+                $('#testDSM_result').html(loading);
+                dsm.host = $('#syno_dsm_host').val();
+                dsm.username = $('#syno_dsm_user').val();
+                dsm.password = $('#syno_dsm_pass').val();
+
+                $.get(srRoot + '/home/testDSM', {
+                    'host': dsm.host,
+                    'username': dsm.username,
+                    'password': dsm.password,
+                }, function(data){
+                    $('#testDSM_result').html(data);
+                });
+            });
+
             $('#torrent_method').on('change', $.torrentMethodHandler);
 
             $.torrentMethodHandler();
@@ -1849,7 +1905,7 @@ var SICKRAGE = {
                 $('.show-grid').isotope({
                     filter: function () {
                       var name = $(this).attr('data-name').toLowerCase();
-                      return name.indexOf($('#filterShowName').val()) > -1;
+                      return name.indexOf($('#filterShowName').val().toLowerCase()) > -1;
                     }
                 });
             }, 500));
@@ -1949,9 +2005,9 @@ var SICKRAGE = {
                     7: { filter: 'parsed' }
                 },
                 widgetOptions: {
-                    filter_columnFilters: true, // jshint ignore:line
-                    filter_hideFilters: true, // jshint ignore:line
-                    filter_saveFilters: true, // jshint ignore:line
+                    'filter_columnFilters': true,
+                    'filter_hideFilters': true,
+                    // 'filter_saveFilters': true,
                     filter_functions: { // jshint ignore:line
                         5: function(e, n, f) {
                             var test = false;
@@ -2122,6 +2178,10 @@ var SICKRAGE = {
             });
         },
         displayShow: function() {
+            if (metaToBool('sickbeard.FANART_BACKGROUND')) {
+                $.backstretch(srRoot + '/showPoster/?show=' + $('#showID').attr('value') + '&which=fanart');
+                $('.backstretch').css("opacity", getMeta('sickbeard.FANART_BACKGROUND_OPACITY')).fadeIn("500");
+            }
             $('#srRoot').ajaxEpSearch({'colorRow': true});
 
             $('#srRoot').ajaxEpSubtitlesSearch();
@@ -2159,7 +2219,9 @@ var SICKRAGE = {
 
                 if (epArr.length === 0) { return false; }
 
-                window.location.href = srRoot + '/home/setStatus?show=' + $('#showID').attr('value') + '&eps=' + epArr.join('|') + '&status=' + $('#statusSelect').val();
+                var url = srRoot + '/home/setStatus';
+                var params = 'show=' + $('#showID').attr('value') + '&eps=' + epArr.join('|') + '&status=' + $('#statusSelect').val();
+                $.post(url, params, function() { location.reload(true); });
             });
 
             $('.seasonCheck').on('click', function(){
@@ -2601,7 +2663,7 @@ var SICKRAGE = {
 
                 if (removeArr.length === 0) { return false; }
 
-                window.location.href = srRoot + '/manage/failedDownloads?toRemove='+removeArr.join('|');
+                $.post(srRoot + '/manage/failedDownloads', 'toRemove='+removeArr.join('|'), function() { location.reload(true); });
             });
 
             if($('.removeCheck').length){
@@ -3201,7 +3263,12 @@ var SICKRAGE = {
                     return false;
                 }
 
-                window.location.href = srRoot + '/addShows/addExistingShows?promptForSettings=' + ($('#promptForSettings').prop('checked') ? 'on' : 'off') + '&shows_to_add=' + dirArr.join('&shows_to_add=');
+                var url = srRoot + '/addShows/addExistingShows?promptForSettings=' + ($('#promptForSettings').prop('checked') ? 'on' : 'off') + '&shows_to_add=' + dirArr.join('&shows_to_add=');
+                if(url.length < 2083) {
+                    window.location.href = url;
+                } else {
+                    alert("You've selected too many shows, please uncheck some and try again. [" + url.length + "/2083 characters]");
+                }
             });
 
             function loadContent() {
@@ -3216,7 +3283,7 @@ var SICKRAGE = {
                 });
 
                 $('#tableDiv').html('<img id="searchingAnim" src="' + srRoot + '/images/loading32.gif" height="32" width="32" /> loading folders...');
-                $.get(srRoot + '/addShows/massAddTable/', url, function(data) {
+                $.post(srRoot + '/addShows/massAddTable/', url, function(data) {
                     $('#tableDiv').html(data);
                     $("#addRootDirTable").tablesorter({
                         //sortList: [[1,0]],
