@@ -100,6 +100,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
         self._paused = 0
         self._air_by_date = 0
         self._subtitles = int(sickbeard.SUBTITLES_DEFAULT)
+        self._subtitles_sr_metadata = 0
         self._dvdorder = 0
         self._lang = lang
         self._last_update_indexer = 1
@@ -150,6 +151,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
     rls_ignore_words = property(lambda self: self._rls_ignore_words, dirty_setter("_rls_ignore_words"))
     rls_require_words = property(lambda self: self._rls_require_words, dirty_setter("_rls_require_words"))
     default_ep_status = property(lambda self: self._default_ep_status, dirty_setter("_default_ep_status"))
+    subtitles_sr_metadata = property(lambda self: self._subtitles_sr_metadata, dirty_setter("_subtitles_sr_metadata"))
 
     @property
     def is_anime(self):
@@ -471,12 +473,11 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
 
         lINDEXER_API_PARMS = sickbeard.indexerApi(self.indexer).api_params.copy()
 
-        if self.lang:
-            lINDEXER_API_PARMS[b'language'] = self.lang
-            logger.log("Using language: " + str(self.lang), logger.DEBUG)
+        lINDEXER_API_PARMS['language'] = self.lang or sickbeard.INDEXER_DEFAULT_LANGUAGE
+        logger.log("Using language: " + str(self.lang), logger.DEBUG)
 
-        if self.dvdorder != 0:
-            lINDEXER_API_PARMS[b'dvdorder'] = True
+        if self.dvdorder:
+            lINDEXER_API_PARMS['dvdorder'] = True
 
         # logger.log("lINDEXER_API_PARMS: " + str(lINDEXER_API_PARMS), logger.DEBUG)
         # Spamming log
@@ -539,13 +540,12 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
         lINDEXER_API_PARMS = sickbeard.indexerApi(self.indexer).api_params.copy()
 
         if not cache:
-            lINDEXER_API_PARMS[b'cache'] = False
+            lINDEXER_API_PARMS['cache'] = False
 
-        if self.lang:
-            lINDEXER_API_PARMS[b'language'] = self.lang
+        lINDEXER_API_PARMS['language'] = self.lang or sickbeard.INDEXER_DEFAULT_LANGUAGE
 
-        if self.dvdorder != 0:
-            lINDEXER_API_PARMS[b'dvdorder'] = True
+        if self.dvdorder:
+            lINDEXER_API_PARMS['dvdorder'] = True
 
         try:
             t = sickbeard.indexerApi(self.indexer).indexer(**lINDEXER_API_PARMS)
@@ -814,6 +814,8 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
             if self.is_anime:
                 self.release_groups = BlackAndWhiteList(self.indexerid)
 
+            self.subtitles_sr_metadata = int(sql_results[0][b"sub_use_sr_metadata"] or 0)
+
         # Get IMDb_info from database
         main_db_con = db.DBConnection()
         sql_results = main_db_con.select("SELECT * FROM imdb_info WHERE indexer_id = ?", [self.indexerid])
@@ -842,13 +844,12 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
             lINDEXER_API_PARMS = sickbeard.indexerApi(self.indexer).api_params.copy()
 
             if not cache:
-                lINDEXER_API_PARMS[b'cache'] = False
+                lINDEXER_API_PARMS['cache'] = False
 
-            if self.lang:
-                lINDEXER_API_PARMS[b'language'] = self.lang
+            lINDEXER_API_PARMS['language'] = self.lang or sickbeard.INDEXER_DEFAULT_LANGUAGE
 
-            if self.dvdorder != 0:
-                lINDEXER_API_PARMS[b'dvdorder'] = True
+            if self.dvdorder:
+                lINDEXER_API_PARMS['dvdorder'] = True
 
             t = sickbeard.indexerApi(self.indexer).indexer(**lINDEXER_API_PARMS)
 
@@ -1076,7 +1077,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
                         if curEp.location and curEp.status in Quality.DOWNLOADED:
 
                             if sickbeard.EP_DEFAULT_DELETED_STATUS == ARCHIVED:
-                                _, oldQuality = Quality.splitCompositeStatus(curEp.status)
+                                oldStatus_, oldQuality = Quality.splitCompositeStatus(curEp.status)
                                 new_status = Quality.compositeStatus(ARCHIVED, oldQuality)
                             else:
                                 new_status = sickbeard.EP_DEFAULT_DELETED_STATUS
@@ -1151,7 +1152,8 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
                         "last_update_indexer": self.last_update_indexer,
                         "rls_ignore_words": self.rls_ignore_words,
                         "rls_require_words": self.rls_require_words,
-                        "default_ep_status": self.default_ep_status}
+                        "default_ep_status": self.default_ep_status,
+                        "sub_use_sr_metadata": self.subtitles_sr_metadata}
 
         main_db_con = db.DBConnection()
         main_db_con.upsert("tv_shows", newValueDict, controlValueDict)
@@ -1225,7 +1227,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
                         quality=Quality.qualityStrings[quality]), logger.DEBUG)
             return False
 
-        _, curQuality = Quality.splitCompositeStatus(epStatus)
+        curStatus_, curQuality = Quality.splitCompositeStatus(epStatus)
 
         # if it's one of these then we want it as long as it's in our allowed initial qualities
         if epStatus in (WANTED, SKIPPED, UNKNOWN):
@@ -1392,14 +1394,12 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
 
     def refreshSubtitles(self):
         """Look for subtitles files and refresh the subtitles property"""
-        episode_info = {'show_name': self.show.name, 'location': self.location,
-                        'season': self.season, 'episode': self.episode}
-        self.subtitles, save_subtitles = subtitles.refresh_subtitles(episode_info, self.subtitles)
+        self.subtitles, save_subtitles = subtitles.refresh_subtitles(self)
         if save_subtitles:
             self.saveToDB()
 
     def download_subtitles(self, force=False):
-        _ = force
+        force_ = force
         if not ek(os.path.isfile, self.location):
             logger.log("{id}: Episode file doesn't exist, can't download subtitles for {ep}".format
                        (id=self.show.indexerid, ep=episode_num(self.season, self.episode)),
@@ -1415,11 +1415,7 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
                    (show=self.show.name, ep=episode_num(self.season, self.episode),
                     location=os.path.basename(self.location)), logger.DEBUG)
 
-        subtitles_info = {'location': self.location, 'subtitles': self.subtitles, 'season': self.season,
-                          'episode': self.episode, 'name': self.name, 'show_name': self.show.name,
-                          'show_indexerid': self.show.indexerid, 'status': self.status}
-
-        self.subtitles, new_subtitles = subtitles.download_subtitles(subtitles_info)
+        self.subtitles, new_subtitles = subtitles.download_subtitles(self)
 
         self.subtitles_searchcount += 1 if self.subtitles_searchcount else 1
         self.subtitles_lastsearch = datetime.datetime.now().strftime(dateTimeFormat)
@@ -1595,13 +1591,12 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
                     lINDEXER_API_PARMS = sickbeard.indexerApi(self.indexer).api_params.copy()
 
                     if not cache:
-                        lINDEXER_API_PARMS[b'cache'] = False
+                        lINDEXER_API_PARMS['cache'] = False
 
-                    if indexer_lang:
-                        lINDEXER_API_PARMS[b'language'] = indexer_lang
+                    lINDEXER_API_PARMS['language'] = indexer_lang or sickbeard.INDEXER_DEFAULT_LANGUAGE
 
-                    if self.show.dvdorder != 0:
-                        lINDEXER_API_PARMS[b'dvdorder'] = True
+                    if self.show.dvdorder:
+                        lINDEXER_API_PARMS['dvdorder'] = True
 
                     t = sickbeard.indexerApi(self.indexer).indexer(**lINDEXER_API_PARMS)
                 myEp = t[self.show.indexerid][season][episode]
@@ -2090,7 +2085,7 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
                 return ''
             return parse_result.release_group.strip('.- []{}')
 
-        _, epQual = Quality.splitCompositeStatus(self.status)  # @UnusedVariable
+        epStatus_, epQual = Quality.splitCompositeStatus(self.status)  # @UnusedVariable
 
         if sickbeard.NAMING_STRIP_YEAR:
             show_name = re.sub(r"\(\d+\)$", "", self.show.name).strip()

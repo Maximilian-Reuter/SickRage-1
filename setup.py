@@ -26,7 +26,11 @@ setup(
     license='GPLv2',
 
     packages=find_packages(),
-    install_requires=[],
+    install_requires=[
+        'pytz',
+        'requests',
+        'mako'
+    ],
 
     test_suite="tests",
     tests_require=[
@@ -34,7 +38,8 @@ setup(
         'nose',
         'rednose',
         'mock',
-        'vcrpy-unittest'
+        'vcrpy-unittest',
+        'babel'
     ],
 
     classifiers=[
