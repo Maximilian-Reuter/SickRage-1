@@ -346,16 +346,20 @@ class GenericProvider(object):  # pylint: disable=too-many-instance-attributes
                 if "265" in rlsCodec or rlsCodec== "hevc":
                     if self.show.runtime > 30:
                         if (height=="1080p" and rlsSize <= 400000000) or (height=="720p" and rlsSize <= 200000000):
+                            logger.log(u"Show has runtime over 30 and is x265", logger.DEBUG) 
                             quality = Quality.UNKNOWN
                     else:
                         if (height=="1080p" and rlsSize <= 200000000) or (height=="720p" and rlsSize <= 100000000):
+                            logger.log(u"Show has runtime under 30 and is x265", logger.DEBUG) 
                             quality = Quality.UNKNOWN
                 elif "264" in rlsCodec or rlsCodec== "avc":
                     if self.show.runtime > 30:
                         if (height=="1080p" and rlsSize <= 1000000000) or (height=="720p" and rlsSize <= 800000000):
+                            logger.log(u"Show has runtime over 30 and is x264", logger.DEBUG) 
                             quality = Quality.UNKNOWN
                     else:
                         if (height=="1080p" and rlsSize <= 700000000) or (height=="720p" and rlsSize <= 500000000):
+                            logger.log(u"Show has runtime under 30 and is x264", logger.DEBUG) 
                             quality = Quality.UNKNOWN
 
                 logger.log(u"Quality set to: %s" %quality, logger.DEBUG) 
