@@ -47,6 +47,8 @@ overwrite_cassettes = False
 disabled_provider_tests = {
     # ???
     'Cpasbien': ['test_rss_search', 'test_episode_search', 'test_season_search'],
+# ???
+    'Torrent9': ['test_rss_search', 'test_episode_search', 'test_season_search'],
     # api_maintenance still
     'TorrentProject': ['test_rss_search', 'test_episode_search', 'test_season_search'],
     # Have to trick it into thinking is an anime search, and add string overrides
@@ -56,8 +58,10 @@ disabled_provider_tests = {
 }
 test_string_overrides = {
     'Cpasbien': {'Episode': ['The 100 S02E16'], 'Season': ['The 100 S02']},
+    'Torrent9': {'Episode': ['NCIS S14E09'], 'Season': ['NCIS S14']},
     'NyaaTorrents': {'Episode': ['Fairy Tail S2'], 'Season': ['Fairy Tail S2']},
     'TokyoToshokan': {'Episode': ['Fairy Tail S2'], 'Season': ['Fairy Tail S2']},
+    'HorribleSubs': {'Episode': ['Fairy Tail S2'], 'Season': ['Fairy Tail S2']},
 }
 
 magnet_regex = re.compile(r'magnet:\?xt=urn:btih:\w{32,40}(:?&dn=[\w. %+-]+)*(:?&tr=(:?tcp|https?|udp)[\w%. +-]+)*')
@@ -127,9 +131,10 @@ class BaseParser(type):
             """Check that the provider parses rss search results"""
             results = self.provider.search(self.search_strings('RSS'))
 
-            self.assertTrue(self.cassette.requests)
-            self.assertTrue(results, self.cassette.requests[-1].url)
-            self.assertTrue(len(self.cassette))
+            if self.provider.enable_daily:
+                self.assertTrue(self.cassette.requests)
+                self.assertTrue(results, self.cassette.requests[-1].url)
+                self.assertTrue(len(self.cassette))
 
         @magic_skip
         def test_episode_search(self):

@@ -20,11 +20,11 @@
 
 from __future__ import unicode_literals
 
-import os.path
 import datetime
-import threading
+import os.path
 import re
 import stat
+import threading
 import traceback
 
 try:
@@ -66,10 +66,8 @@ from sickbeard.common import NAMING_DUPLICATE, NAMING_EXTEND, NAMING_LIMITED_EXT
     NAMING_LIMITED_EXTEND_E_PREFIXED
 
 import shutil
-import shutil_custom
 
 
-shutil.copyfile = shutil_custom.copyfile_custom
 
 
 def dirty_setter(attr_name):
@@ -486,6 +484,9 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
         cachedShow = t[self.indexerid]
         cachedSeasons = {}
 
+        curShowid = None
+        curShowName = None
+
         for curResult in sql_results:
 
             curSeason = int(curResult[b"season"])
@@ -530,8 +531,9 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
                            logger.DEBUG)
                 continue
 
-        logger.log("{id}: Finished loading all episodes for {show} from the DB".format
-                   (show=curShowName, id=curShowid), logger.DEBUG)
+        if curShowName and curShowid:
+            logger.log("{id}: Finished loading all episodes for {show} from the DB".format
+                       (show=curShowName, id=curShowid), logger.DEBUG)
 
         return scannedEps
 
@@ -644,7 +646,7 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
         if not episodes:
             logger.log("{0}: parse_result: {1}".format(self.indexerid, parse_result))
             logger.log("{0}: No episode number found in {1}, ignoring it".format
-                       (self.indexerid, filepath), logger.WARNING)
+                       (self.indexerid, filepath), logger.INFO)
             return None
 
         # for now lets assume that any episode in the show dir belongs to that show
@@ -896,7 +898,11 @@ class TVShow(object):  # pylint: disable=too-many-instance-attributes, too-many-
             'last_update': ''
         }
 
-        i = imdb.IMDb()
+        if sickbeard.PROXY_SETTING:
+            i = imdb.IMDb(proxy=sickbeard.PROXY_SETTING)
+        else:
+            i = imdb.IMDb()
+
         if not self.imdbid:
             self.imdbid = i.title2imdbID(self.name, kind='tv series')
 
@@ -1398,7 +1404,7 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
         if save_subtitles:
             self.saveToDB()
 
-    def download_subtitles(self, force=False):
+    def download_subtitles(self, force=False, force_lang=None):
         force_ = force
         if not ek(os.path.isfile, self.location):
             logger.log("{id}: Episode file doesn't exist, can't download subtitles for {ep}".format
@@ -1406,7 +1412,7 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
                        logger.DEBUG)
             return
 
-        if not subtitles.needs_subtitles(self.subtitles):
+        if not subtitles.needs_subtitles(self.subtitles, force_lang):
             logger.log('Episode already has all needed subtitles, skipping episode {ep} of show {show}'.format
                        (ep=episode_num(self.season, self.episode), show=self.show.name), logger.DEBUG)
             return
@@ -1415,7 +1421,7 @@ class TVEpisode(object):  # pylint: disable=too-many-instance-attributes, too-ma
                    (show=self.show.name, ep=episode_num(self.season, self.episode),
                     location=os.path.basename(self.location)), logger.DEBUG)
 
-        self.subtitles, new_subtitles = subtitles.download_subtitles(self)
+        self.subtitles, new_subtitles = subtitles.download_subtitles(self, force_lang)
 
         self.subtitles_searchcount += 1 if self.subtitles_searchcount else 1
         self.subtitles_lastsearch = datetime.datetime.now().strftime(dateTimeFormat)

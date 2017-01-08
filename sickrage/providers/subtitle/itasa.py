@@ -13,6 +13,7 @@ except ImportError:  # pragma: no cover
         import xml.etree.cElementTree as etree
     except ImportError:
         import xml.etree.ElementTree as etree
+
 from requests import Session
 from zipfile import ZipFile, is_zipfile
 
@@ -62,7 +63,7 @@ class ItaSASubtitle(Subtitle):
         if video.year and self.year == video.year:
             matches.add('year')
         if video.series_tvdb_id and self.tvdb_id == video.series_tvdb_id:
-            matches.add('tvdb_id')
+            matches.add('series_tvdb_id')
 
         # other properties
         matches |= guess_matches(video, guessit(self.full_data), partial=True)
@@ -260,7 +261,7 @@ class ItaSAProvider(Provider):
         params = {
             'apikey': self.apikey,
             'show_id': show_id,
-            'q': 'Stagione %d' % season,
+            'q': 'Stagione %%%d' % season,
             'version': sub_format
         }
         r = self.session.get(self.server_url + 'subtitles/search', params=params, timeout=30)
@@ -280,8 +281,9 @@ class ItaSAProvider(Provider):
 
         subs = []
         # Looking for subtitles in first page
+        season_re = re.compile('.*?stagione 0*?%d.*' % season)
         for subtitle in root.findall('data/subtitles/subtitle'):
-            if 'stagione %d' % season in subtitle.find('name').text.lower():
+            if season_re.match(subtitle.find('name').text.lower()):
                 logger.debug('Found season zip id %d - %r - %r',
                              int(subtitle.find('id').text),
                              subtitle.find('name').text,

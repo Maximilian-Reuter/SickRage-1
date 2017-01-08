@@ -17,16 +17,15 @@
 # You should have received a copy of the GNU General Public License
 # along with SickRage. If not, see <http://www.gnu.org/licenses/>.
 # pylint: disable=too-many-lines
-from threading import Lock
-
 import datetime
-import socket
+import gettext
 import os
-import sys
+import random
 import re
 import shutil
-import random
-import gettext
+import socket
+import sys
+from threading import Lock
 
 try:
     import pytz  # pylint: disable=unused-import
@@ -34,7 +33,6 @@ except ImportError:
     from pkg_resources import require
     require('pytz')
 
-import shutil_custom
 
 from sickbeard.indexers import indexer_api
 from sickbeard.common import SD, SKIPPED, WANTED
@@ -46,7 +44,7 @@ from sickbeard.config import CheckSection, check_setting_int, check_setting_str,
 from sickbeard import db, helpers, scheduler, search_queue, show_queue, logger, \
     naming, dailysearcher, metadata, providers
 from sickbeard import searchBacklog, showUpdater, versionChecker, properFinder, \
-    auto_postprocessor, subtitles, traktChecker
+    auto_postprocessor, post_processing_queue, subtitles, traktChecker
 from sickbeard.indexers.indexer_exceptions import indexer_shownotfound, \
     indexer_showincomplete, indexer_exception, indexer_error, \
     indexer_episodenotfound, indexer_attributenotfound, indexer_seasonnotfound, \
@@ -76,7 +74,6 @@ dynamic_strings = (
 )
 
 
-shutil.copyfile = shutil_custom.copyfile_custom
 requests.packages.urllib3.disable_warnings()
 indexerApi = indexer_api.indexerApi
 
@@ -111,7 +108,7 @@ events = None
 # github
 gh = None
 
-# schedualers
+# schedulers
 dailySearchScheduler = None
 backlogSearchScheduler = None
 showUpdateScheduler = None
@@ -119,7 +116,8 @@ versionCheckScheduler = None
 showQueueScheduler = None
 searchQueueScheduler = None
 properFinderScheduler = None
-autoPostProcesserScheduler = None
+autoPostProcessorScheduler = None
+postProcessorTaskScheduler = None
 subtitlesFinderScheduler = None
 traktCheckerScheduler = None
 
@@ -180,7 +178,6 @@ DOWNLOAD_URL = None
 
 HANDLE_REVERSE_PROXY = False
 PROXY_SETTING = None
-PROXY_INDEXERS = True
 SSL_VERIFY = True
 
 LOCALHOST_IP = None
@@ -260,19 +257,19 @@ ALLOW_HIGH_PRIORITY = False
 SAB_FORCED = False
 RANDOMIZE_PROVIDERS = False
 
-AUTOPOSTPROCESSER_FREQUENCY = None
+AUTOPOSTPROCESSOR_FREQUENCY = None
 DAILYSEARCH_FREQUENCY = None
 UPDATE_FREQUENCY = None
 BACKLOG_FREQUENCY = None
 SHOWUPDATE_HOUR = None
 
-DEFAULT_AUTOPOSTPROCESSER_FREQUENCY = 10
+DEFAULT_AUTOPOSTPROCESSOR_FREQUENCY = 10
 DEFAULT_DAILYSEARCH_FREQUENCY = 40
 DEFAULT_BACKLOG_FREQUENCY = 21
 DEFAULT_UPDATE_FREQUENCY = 1
 DEFAULT_SHOWUPDATE_HOUR = random.randint(2, 4)
 
-MIN_AUTOPOSTPROCESSER_FREQUENCY = 1
+MIN_AUTOPOSTPROCESSOR_FREQUENCY = 1
 MIN_DAILYSEARCH_FREQUENCY = 10
 MIN_BACKLOG_FREQUENCY = 10
 MIN_UPDATE_FREQUENCY = 1
@@ -286,6 +283,7 @@ AIRDATE_EPISODES = False
 FILE_TIMESTAMP_TIMEZONE = None
 PROCESS_AUTOMATICALLY = False
 NO_DELETE = False
+USE_ICACLS = True
 KEEP_PROCESSED_DIR = False
 PROCESS_METHOD = None
 DELRARCONTENTS = False
@@ -296,6 +294,7 @@ TV_DOWNLOAD_DIR = None
 UNPACK = False
 SKIP_REMOVED_FILES = False
 ALLOWED_EXTENSIONS = "srt,nfo,srr,sfv"
+USE_FREE_SPACE_CHECK = True
 
 NZBS = False
 NZBS_UID = None
@@ -423,6 +422,15 @@ TWITTER_PREFIX = None
 TWITTER_DMTO = None
 TWITTER_USEDM = False
 
+USE_TWILIO = False
+TWILIO_NOTIFY_ONSNATCH = False
+TWILIO_NOTIFY_ONDOWNLOAD = False
+TWILIO_NOTIFY_ONSUBTITLEDOWNLOAD = False
+TWILIO_PHONE_SID = ''
+TWILIO_ACCOUNT_SID = ''
+TWILIO_AUTH_TOKEN = ''
+TWILIO_TO_NUMBER = ''
+
 USE_BOXCAR2 = False
 BOXCAR2_NOTIFY_ONSNATCH = False
 BOXCAR2_NOTIFY_ONDOWNLOAD = False
@@ -437,6 +445,7 @@ PUSHOVER_USERKEY = None
 PUSHOVER_APIKEY = None
 PUSHOVER_DEVICE = None
 PUSHOVER_SOUND = None
+PUSHOVER_PRIORITY = 0
 
 USE_LIBNOTIFY = False
 LIBNOTIFY_NOTIFY_ONSNATCH = False
@@ -467,6 +476,12 @@ USE_SYNOLOGYNOTIFIER = False
 SYNOLOGYNOTIFIER_NOTIFY_ONSNATCH = False
 SYNOLOGYNOTIFIER_NOTIFY_ONDOWNLOAD = False
 SYNOLOGYNOTIFIER_NOTIFY_ONSUBTITLEDOWNLOAD = False
+
+USE_SLACK = False
+SLACK_NOTIFY_SNATCH = None
+SLACK_NOTIFY_DOWNLOAD = None
+SLACK_NOTIFY_SUBTITLEDOWNLOAD = None
+SLACK_WEBHOOK = None
 
 USE_TRAKT = False
 TRAKT_USERNAME = None
@@ -639,32 +654,33 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
             USE_NMA, NMA_NOTIFY_ONSNATCH, NMA_NOTIFY_ONDOWNLOAD, NMA_NOTIFY_ONSUBTITLEDOWNLOAD, NMA_API, NMA_PRIORITY, \
             USE_PUSHALOT, PUSHALOT_NOTIFY_ONSNATCH, PUSHALOT_NOTIFY_ONDOWNLOAD, PUSHALOT_NOTIFY_ONSUBTITLEDOWNLOAD, PUSHALOT_AUTHORIZATIONTOKEN, \
             USE_PUSHBULLET, PUSHBULLET_NOTIFY_ONSNATCH, PUSHBULLET_NOTIFY_ONDOWNLOAD, PUSHBULLET_NOTIFY_ONSUBTITLEDOWNLOAD, PUSHBULLET_API, PUSHBULLET_DEVICE, PUSHBULLET_CHANNEL,\
-            versionCheckScheduler, VERSION_NOTIFY, AUTO_UPDATE, NOTIFY_ON_UPDATE, PROCESS_AUTOMATICALLY, NO_DELETE, UNPACK, CPU_PRESET, \
+            versionCheckScheduler, VERSION_NOTIFY, AUTO_UPDATE, NOTIFY_ON_UPDATE, PROCESS_AUTOMATICALLY, NO_DELETE, USE_ICACLS, UNPACK, CPU_PRESET, \
             KEEP_PROCESSED_DIR, PROCESS_METHOD, DELRARCONTENTS, TV_DOWNLOAD_DIR, UPDATE_FREQUENCY, \
-            showQueueScheduler, searchQueueScheduler, ROOT_DIRS, CACHE_DIR, ACTUAL_CACHE_DIR, TIMEZONE_DISPLAY, \
+            showQueueScheduler, searchQueueScheduler, postProcessorTaskScheduler, ROOT_DIRS, CACHE_DIR, ACTUAL_CACHE_DIR, TIMEZONE_DISPLAY, \
             NAMING_PATTERN, NAMING_MULTI_EP, NAMING_ANIME_MULTI_EP, NAMING_FORCE_FOLDERS, NAMING_ABD_PATTERN, NAMING_CUSTOM_ABD, NAMING_SPORTS_PATTERN, NAMING_CUSTOM_SPORTS, NAMING_ANIME_PATTERN, NAMING_CUSTOM_ANIME, NAMING_STRIP_YEAR, \
-            RENAME_EPISODES, AIRDATE_EPISODES, FILE_TIMESTAMP_TIMEZONE, properFinderScheduler, PROVIDER_ORDER, autoPostProcesserScheduler, \
+            RENAME_EPISODES, AIRDATE_EPISODES, FILE_TIMESTAMP_TIMEZONE, properFinderScheduler, PROVIDER_ORDER, autoPostProcessorScheduler, \
             providerList, newznabProviderList, torrentRssProviderList, \
             EXTRA_SCRIPTS, USE_TWITTER, TWITTER_USERNAME, TWITTER_PASSWORD, TWITTER_PREFIX, DAILYSEARCH_FREQUENCY, TWITTER_DMTO, TWITTER_USEDM, \
+            USE_TWILIO, TWILIO_NOTIFY_ONSNATCH, TWILIO_NOTIFY_ONDOWNLOAD, TWILIO_NOTIFY_ONSUBTITLEDOWNLOAD, TWILIO_PHONE_SID, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_TO_NUMBER, \
             USE_BOXCAR2, BOXCAR2_ACCESSTOKEN, BOXCAR2_NOTIFY_ONDOWNLOAD, BOXCAR2_NOTIFY_ONSUBTITLEDOWNLOAD, BOXCAR2_NOTIFY_ONSNATCH, \
-            USE_PUSHOVER, PUSHOVER_USERKEY, PUSHOVER_APIKEY, PUSHOVER_DEVICE, PUSHOVER_NOTIFY_ONDOWNLOAD, PUSHOVER_NOTIFY_ONSUBTITLEDOWNLOAD, PUSHOVER_NOTIFY_ONSNATCH, PUSHOVER_SOUND, \
+            USE_PUSHOVER, PUSHOVER_USERKEY, PUSHOVER_APIKEY, PUSHOVER_DEVICE, PUSHOVER_NOTIFY_ONDOWNLOAD, PUSHOVER_NOTIFY_ONSUBTITLEDOWNLOAD, PUSHOVER_NOTIFY_ONSNATCH, PUSHOVER_SOUND, PUSHOVER_PRIORITY, \
             USE_LIBNOTIFY, LIBNOTIFY_NOTIFY_ONSNATCH, LIBNOTIFY_NOTIFY_ONDOWNLOAD, LIBNOTIFY_NOTIFY_ONSUBTITLEDOWNLOAD, USE_NMJ, NMJ_HOST, NMJ_DATABASE, NMJ_MOUNT, USE_NMJv2, NMJv2_HOST, NMJv2_DATABASE, NMJv2_DBLOC, USE_SYNOINDEX, \
             USE_SYNOLOGYNOTIFIER, SYNOLOGYNOTIFIER_NOTIFY_ONSNATCH, SYNOLOGYNOTIFIER_NOTIFY_ONDOWNLOAD, SYNOLOGYNOTIFIER_NOTIFY_ONSUBTITLEDOWNLOAD, \
             USE_EMAIL, EMAIL_HOST, EMAIL_PORT, EMAIL_TLS, EMAIL_USER, EMAIL_PASSWORD, EMAIL_FROM, EMAIL_NOTIFY_ONSNATCH, EMAIL_NOTIFY_ONDOWNLOAD, EMAIL_NOTIFY_ONSUBTITLEDOWNLOAD, EMAIL_LIST, EMAIL_SUBJECT, \
             USE_LISTVIEW, METADATA_KODI, METADATA_KODI_12PLUS, METADATA_MEDIABROWSER, METADATA_PS3, metadata_provider_dict, \
             NEWZBIN, NEWZBIN_USERNAME, NEWZBIN_PASSWORD, GIT_PATH, MOVE_ASSOCIATED_FILES, SYNC_FILES, POSTPONE_IF_SYNC_FILES, dailySearchScheduler, NFO_RENAME, \
             GUI_NAME, HOME_LAYOUT, HISTORY_LAYOUT, DISPLAY_SHOW_SPECIALS, COMING_EPS_LAYOUT, COMING_EPS_SORT, COMING_EPS_DISPLAY_PAUSED, COMING_EPS_MISSED_RANGE, FUZZY_DATING, TRIM_ZERO, DATE_PRESET, TIME_PRESET, TIME_PRESET_W_SECONDS, THEME_NAME, \
-            POSTER_SORTBY, POSTER_SORTDIR, HISTORY_LIMIT, CREATE_MISSING_SHOW_DIRS, ADD_SHOWS_WO_DIR, \
+            POSTER_SORTBY, POSTER_SORTDIR, HISTORY_LIMIT, CREATE_MISSING_SHOW_DIRS, ADD_SHOWS_WO_DIR, USE_FREE_SPACE_CHECK, \
             METADATA_WDTV, METADATA_TIVO, METADATA_MEDE8ER, IGNORE_WORDS, TRACKERS_LIST, IGNORED_SUBS_LIST, REQUIRE_WORDS, CALENDAR_UNPROTECTED, CALENDAR_ICONS, NO_RESTART, \
             USE_SUBTITLES, SUBTITLES_LANGUAGES, SUBTITLES_DIR, SUBTITLES_SERVICES_LIST, SUBTITLES_SERVICES_ENABLED, SUBTITLES_HISTORY, SUBTITLES_FINDER_FREQUENCY, SUBTITLES_MULTI, SUBTITLES_KEEP_ONLY_WANTED, EMBEDDED_SUBTITLES_ALL, SUBTITLES_EXTRA_SCRIPTS, SUBTITLES_PERFECT_MATCH, subtitlesFinderScheduler, \
             SUBTITLES_HEARING_IMPAIRED, ADDIC7ED_USER, ADDIC7ED_PASS, ITASA_USER, ITASA_PASS, LEGENDASTV_USER, LEGENDASTV_PASS, OPENSUBTITLES_USER, OPENSUBTITLES_PASS, \
-            USE_FAILED_DOWNLOADS, DELETE_FAILED, ANON_REDIRECT, LOCALHOST_IP, DEBUG, DBDEBUG, DEFAULT_PAGE, PROXY_SETTING, PROXY_INDEXERS, \
-            AUTOPOSTPROCESSER_FREQUENCY, SHOWUPDATE_HOUR, \
+            USE_FAILED_DOWNLOADS, DELETE_FAILED, ANON_REDIRECT, LOCALHOST_IP, DEBUG, DBDEBUG, DEFAULT_PAGE, PROXY_SETTING, \
+            AUTOPOSTPROCESSOR_FREQUENCY, SHOWUPDATE_HOUR, \
             ANIME_DEFAULT, NAMING_ANIME, ANIMESUPPORT, USE_ANIDB, ANIDB_USERNAME, ANIDB_PASSWORD, ANIDB_USE_MYLIST, \
             ANIME_SPLIT_HOME, SCENE_DEFAULT, DOWNLOAD_URL, BACKLOG_DAYS, GIT_USERNAME, GIT_PASSWORD, \
             DEVELOPER, DISPLAY_ALL_SEASONS, SSL_VERIFY, NEWS_LAST_READ, NEWS_LATEST, SOCKET_TIMEOUT, \
             SYNOLOGY_DSM_HOST, SYNOLOGY_DSM_USERNAME, SYNOLOGY_DSM_PASSWORD, SYNOLOGY_DSM_PATH, GUI_LANG, \
-            FANART_BACKGROUND, FANART_BACKGROUND_OPACITY
+            FANART_BACKGROUND, FANART_BACKGROUND_OPACITY, USE_SLACK, SLACK_NOTIFY_SNATCH, SLACK_NOTIFY_DOWNLOAD, SLACK_WEBHOOK
 
         if __INITIALIZED__:
             return False
@@ -691,6 +707,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         CheckSection(CFG, 'Pushbullet')
         CheckSection(CFG, 'Subtitles')
         CheckSection(CFG, 'pyTivo')
+        CheckSection(CFG, 'Slack')
 
         # Need to be before any passwords
         ENCRYPTION_VERSION = check_setting_int(CFG, 'General', 'encryption_version', 0)
@@ -849,7 +866,6 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
 
         ANON_REDIRECT = check_setting_str(CFG, 'General', 'anon_redirect', 'http://dereferer.org/?')
         PROXY_SETTING = check_setting_str(CFG, 'General', 'proxy_setting', '')
-        PROXY_INDEXERS = bool(check_setting_int(CFG, 'General', 'proxy_indexers', 1))
 
         # attempt to help prevent users from breaking links by using a bad url
         if not ANON_REDIRECT.endswith('?'):
@@ -929,10 +945,10 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
 
         USENET_RETENTION = check_setting_int(CFG, 'General', 'usenet_retention', 500)
 
-        AUTOPOSTPROCESSER_FREQUENCY = check_setting_int(CFG, 'General', 'autopostprocesser_frequency',
-                                                        DEFAULT_AUTOPOSTPROCESSER_FREQUENCY)
-        if AUTOPOSTPROCESSER_FREQUENCY < MIN_AUTOPOSTPROCESSER_FREQUENCY:
-            AUTOPOSTPROCESSER_FREQUENCY = MIN_AUTOPOSTPROCESSER_FREQUENCY
+        AUTOPOSTPROCESSOR_FREQUENCY = check_setting_int(CFG, 'General', 'autopostprocessor_frequency',
+                                                        DEFAULT_AUTOPOSTPROCESSOR_FREQUENCY)
+        if AUTOPOSTPROCESSOR_FREQUENCY < MIN_AUTOPOSTPROCESSOR_FREQUENCY:
+            AUTOPOSTPROCESSOR_FREQUENCY = MIN_AUTOPOSTPROCESSOR_FREQUENCY
 
         DAILYSEARCH_FREQUENCY = check_setting_int(CFG, 'General', 'dailysearch_frequency',
                                                   DEFAULT_DAILYSEARCH_FREQUENCY)
@@ -965,6 +981,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         TV_DOWNLOAD_DIR = check_setting_str(CFG, 'General', 'tv_download_dir', '')
         PROCESS_AUTOMATICALLY = bool(check_setting_int(CFG, 'General', 'process_automatically', 0))
         NO_DELETE = bool(check_setting_int(CFG, 'General', 'no_delete', 0))
+        USE_ICACLS = bool(check_setting_int(CFG, 'General', 'use_icacls', 1))
         UNPACK = bool(check_setting_int(CFG, 'General', 'unpack', 0))
         RENAME_EPISODES = bool(check_setting_int(CFG, 'General', 'rename_episodes', 1))
         AIRDATE_EPISODES = bool(check_setting_int(CFG, 'General', 'airdate_episodes', 0))
@@ -978,6 +995,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         NFO_RENAME = bool(check_setting_int(CFG, 'General', 'nfo_rename', 1))
         CREATE_MISSING_SHOW_DIRS = bool(check_setting_int(CFG, 'General', 'create_missing_show_dirs', 0))
         ADD_SHOWS_WO_DIR = bool(check_setting_int(CFG, 'General', 'add_shows_wo_dir', 0))
+        USE_FREE_SPACE_CHECK = bool(check_setting_int(CFG, 'General', 'use_free_space_check', 1))
 
         NZBS = bool(check_setting_int(CFG, 'NZBs', 'nzbs', 0))
         NZBS_UID = check_setting_str(CFG, 'NZBs', 'nzbs_uid', '', censor_log=True)
@@ -1102,6 +1120,15 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         TWITTER_DMTO = check_setting_str(CFG, 'Twitter', 'twitter_dmto', '')
         TWITTER_USEDM = bool(check_setting_int(CFG, 'Twitter', 'twitter_usedm', 0))
 
+        USE_TWILIO = bool(check_setting_int(CFG, 'Twilio', 'use_twilio', 0))
+        TWILIO_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Twilio', 'twilio_notify_onsnatch', 0))
+        TWILIO_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Twilio', 'twilio_notify_ondownload', 0))
+        TWILIO_NOTIFY_ONSUBTITLEDOWNLOAD = bool(check_setting_int(CFG, 'Twilio', 'twilio_notify_onsubtitledownload', 0))
+        TWILIO_PHONE_SID = check_setting_str(CFG, 'Twilio', 'twilio_phone_sid', '', censor_log=True)
+        TWILIO_ACCOUNT_SID = check_setting_str(CFG, 'Twilio', 'twilio_account_sid', '', censor_log=True)
+        TWILIO_AUTH_TOKEN = check_setting_str(CFG, 'Twilio', 'twilio_auth_token', '', censor_log=True)
+        TWILIO_TO_NUMBER = check_setting_str(CFG, 'Twilio', 'twilio_to_number', '', censor_log=True)
+
         USE_BOXCAR2 = bool(check_setting_int(CFG, 'Boxcar2', 'use_boxcar2', 0))
         BOXCAR2_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Boxcar2', 'boxcar2_notify_onsnatch', 0))
         BOXCAR2_NOTIFY_ONDOWNLOAD = bool(check_setting_int(CFG, 'Boxcar2', 'boxcar2_notify_ondownload', 0))
@@ -1116,6 +1143,7 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         PUSHOVER_APIKEY = check_setting_str(CFG, 'Pushover', 'pushover_apikey', '', censor_log=True)
         PUSHOVER_DEVICE = check_setting_str(CFG, 'Pushover', 'pushover_device', '')
         PUSHOVER_SOUND = check_setting_str(CFG, 'Pushover', 'pushover_sound', 'pushover')
+        PUSHOVER_PRIORITY = check_setting_str(CFG, 'Pushover', 'pushover_priority', "0")
 
         USE_LIBNOTIFY = bool(check_setting_int(CFG, 'Libnotify', 'use_libnotify', 0))
         LIBNOTIFY_NOTIFY_ONSNATCH = bool(check_setting_int(CFG, 'Libnotify', 'libnotify_notify_onsnatch', 0))
@@ -1141,6 +1169,11 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
             check_setting_int(CFG, 'SynologyNotifier', 'synologynotifier_notify_ondownload', 0))
         SYNOLOGYNOTIFIER_NOTIFY_ONSUBTITLEDOWNLOAD = bool(
             check_setting_int(CFG, 'SynologyNotifier', 'synologynotifier_notify_onsubtitledownload', 0))
+
+        USE_SLACK = bool(check_setting_int(CFG, 'Slack', 'use_slack', 0 ))
+        SLACK_NOTIFY_SNATCH = bool(check_setting_int(CFG, 'Slack', 'slack_notify_snatch', 0))
+        SLACK_NOTIFY_DOWNLOAD = bool(check_setting_int(CFG, 'Slack', 'slack_notify_download', 0))
+        SLACK_WEBHOOK = check_setting_str(CFG, 'Slack', 'slack_webhook', '')
 
         USE_TRAKT = bool(check_setting_int(CFG, 'Trakt', 'use_trakt', 0))
         TRAKT_USERNAME = check_setting_str(CFG, 'Trakt', 'trakt_username', '', censor_log=True)
@@ -1386,6 +1419,9 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
             if hasattr(curTorrentProvider, 'subtitle'):
                 curTorrentProvider.subtitle = bool(check_setting_int(CFG, curTorrentProvider.get_id().upper(),
                                                                      curTorrentProvider.get_id() + '_subtitle', 0))
+            if hasattr(curTorrentProvider, 'cookies'):
+                curTorrentProvider.cookies = check_setting_str(CFG, curTorrentProvider.get_id().upper(),
+                                                               curTorrentProvider.get_id() + '_cookies', '', censor_log=True)
 
         for curNzbProvider in [curProvider for curProvider in providers.sortedProviderList() if
                                curProvider.provider_type == GenericProvider.NZB]:
@@ -1518,11 +1554,18 @@ def initialize(consoleLogging=True):  # pylint: disable=too-many-locals, too-man
         )
 
         # processors
-        autoPostProcesserScheduler = scheduler.Scheduler(
+        postProcessorTaskScheduler = scheduler.Scheduler(
+            post_processing_queue.ProcessingQueue(),
+            run_delay=datetime.timedelta(seconds=5),
+            cycleTime=datetime.timedelta(seconds=5),
+            threadName="POSTPROCESSOR",
+        )
+
+        autoPostProcessorScheduler = scheduler.Scheduler(
             auto_postprocessor.PostProcessor(),
             run_delay=datetime.timedelta(minutes=5),
-            cycleTime=datetime.timedelta(minutes=AUTOPOSTPROCESSER_FREQUENCY),
-            threadName="POSTPROCESSER",
+            cycleTime=datetime.timedelta(minutes=AUTOPOSTPROCESSOR_FREQUENCY),
+            threadName="POSTPROCESSOR",
             silent=not PROCESS_AUTOMATICALLY,
         )
 
@@ -1580,9 +1623,12 @@ def start():
             properFinderScheduler.enable = DOWNLOAD_PROPERS
             properFinderScheduler.start()
 
+            postProcessorTaskScheduler.enable = True
+            postProcessorTaskScheduler.start()
+
             # start the post processor
-            autoPostProcesserScheduler.enable = PROCESS_AUTOMATICALLY
-            autoPostProcesserScheduler.start()
+            autoPostProcessorScheduler.enable = PROCESS_AUTOMATICALLY
+            autoPostProcessorScheduler.start()
 
             # start the subtitles finder
             subtitlesFinderScheduler.enable = USE_SUBTITLES
@@ -1607,7 +1653,8 @@ def halt():
                 versionCheckScheduler,
                 showQueueScheduler,
                 searchQueueScheduler,
-                autoPostProcesserScheduler,
+                autoPostProcessorScheduler,
+                postProcessorTaskScheduler,
                 traktCheckerScheduler,
                 properFinderScheduler,
                 subtitlesFinderScheduler,
@@ -1735,6 +1782,9 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
         if hasattr(curTorrentProvider, 'subtitle'):
             new_config[curTorrentProvider.get_id().upper()][curTorrentProvider.get_id() + '_subtitle'] = int(
                 curTorrentProvider.subtitle)
+        if hasattr(curTorrentProvider, 'cookies'):
+            new_config[curTorrentProvider.get_id().upper()][
+                curTorrentProvider.get_id() + '_cookies'] = curTorrentProvider.cookies
 
     for curNzbProvider in [curProvider for curProvider in providers.sortedProviderList() if
                            curProvider.provider_type == GenericProvider.NZB]:
@@ -1805,7 +1855,7 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'nzb_method': NZB_METHOD,
             'torrent_method': TORRENT_METHOD,
             'usenet_retention': int(USENET_RETENTION),
-            'autopostprocesser_frequency': int(AUTOPOSTPROCESSER_FREQUENCY),
+            'autopostprocessor_frequency': int(AUTOPOSTPROCESSOR_FREQUENCY),
             'dailysearch_frequency': int(DAILYSEARCH_FREQUENCY),
             'backlog_frequency': int(BACKLOG_FREQUENCY),
             'update_frequency': int(UPDATE_FREQUENCY),
@@ -1846,7 +1896,6 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'trash_rotate_logs': int(TRASH_ROTATE_LOGS),
             'sort_article': int(SORT_ARTICLE),
             'proxy_setting': PROXY_SETTING,
-            'proxy_indexers': int(PROXY_INDEXERS),
             'use_listview': int(USE_LISTVIEW),
 
             'metadata_kodi': METADATA_KODI,
@@ -1871,12 +1920,14 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'nfo_rename': int(NFO_RENAME),
             'process_automatically': int(PROCESS_AUTOMATICALLY),
             'no_delete': int(NO_DELETE),
+            'use_icacls': int(USE_ICACLS),
             'unpack': int(UNPACK),
             'rename_episodes': int(RENAME_EPISODES),
             'airdate_episodes': int(AIRDATE_EPISODES),
             'file_timestamp_timezone': FILE_TIMESTAMP_TIMEZONE,
             'create_missing_show_dirs': int(CREATE_MISSING_SHOW_DIRS),
             'add_shows_wo_dir': int(ADD_SHOWS_WO_DIR),
+            'use_free_space_check': int(USE_FREE_SPACE_CHECK),
 
             'extra_scripts': '|'.join(EXTRA_SCRIPTS),
             'git_path': GIT_PATH,
@@ -2044,6 +2095,17 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'twitter_usedm': int(TWITTER_USEDM),
         },
 
+        'Twilio': {
+            'use_twilio': int(USE_TWILIO),
+            'twilio_notify_onsnatch': int(TWILIO_NOTIFY_ONSNATCH),
+            'twilio_notify_ondownload': int(TWILIO_NOTIFY_ONDOWNLOAD),
+            'twilio_notify_onsubtitledownload': int(TWILIO_NOTIFY_ONSUBTITLEDOWNLOAD),
+            'twilio_phone_sid': helpers.encrypt(TWILIO_PHONE_SID, ENCRYPTION_VERSION),
+            'twilio_account_sid': helpers.encrypt(TWILIO_ACCOUNT_SID, ENCRYPTION_VERSION),
+            'twilio_auth_token': helpers.encrypt(TWILIO_AUTH_TOKEN, ENCRYPTION_VERSION),
+            'twilio_to_number': helpers.encrypt(TWILIO_TO_NUMBER, ENCRYPTION_VERSION),
+        },
+
         'Boxcar2': {
             'use_boxcar2': int(USE_BOXCAR2),
             'boxcar2_notify_onsnatch': int(BOXCAR2_NOTIFY_ONSNATCH),
@@ -2061,6 +2123,7 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'pushover_apikey': PUSHOVER_APIKEY,
             'pushover_device': PUSHOVER_DEVICE,
             'pushover_sound': PUSHOVER_SOUND,
+            'pushover_priority': PUSHOVER_PRIORITY,
         },
 
         'Libnotify': {
@@ -2097,6 +2160,13 @@ def save_config():  # pylint: disable=too-many-statements, too-many-branches
             'synologynotifier_notify_onsnatch': int(SYNOLOGYNOTIFIER_NOTIFY_ONSNATCH),
             'synologynotifier_notify_ondownload': int(SYNOLOGYNOTIFIER_NOTIFY_ONDOWNLOAD),
             'synologynotifier_notify_onsubtitledownload': int(SYNOLOGYNOTIFIER_NOTIFY_ONSUBTITLEDOWNLOAD)
+        },
+
+        'Slack': {
+            'use_slack': int(USE_SLACK),
+            'slack_notify_snatch': int(SLACK_NOTIFY_SNATCH),
+            'slack_notify_download': int(SLACK_NOTIFY_DOWNLOAD),
+            'slack_webhook': SLACK_WEBHOOK
         },
 
         'Trakt': {

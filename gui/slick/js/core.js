@@ -283,20 +283,6 @@ var SICKRAGE = {
             });
         },
         index: function() {
-            if ($("input[name='proxy_setting']").val().length === 0) {
-                $("input[id='proxy_indexers']").prop('checked', false);
-                $("label[for='proxy_indexers']").hide();
-            }
-
-            $("input[name='proxy_setting']").on('input', function() {
-                if($(this).val().length === 0) {
-                    $("input[id='proxy_indexers']").prop('checked', false);
-                    $("label[for='proxy_indexers']").hide();
-                } else {
-                    $("label[for='proxy_indexers']").show();
-                }
-            });
-
             $('#log_dir').fileBrowser({ title: 'Select log file folder location' });
         },
         backupRestore: function(){
@@ -556,6 +542,21 @@ var SICKRAGE = {
             $('#testTwitter').on('click', function() {
                 $.get(srRoot + '/home/testTwitter', function(data) {
                     $('#testTwitter-result').html(data);
+                });
+            });
+
+            $('#testTwilio').on('click', function() {
+                $('#testTwilio').addClass('disabled');
+                $.get(srRoot + '/home/testTwilio', function(data) {
+                    $('#testTwilio-result').html(data);
+                }).always(function() {
+                    $('#testTwilio').removeClass('disabled');
+                });
+            });
+
+            $('#testSlack').on('click', function() {
+                $.get(srRoot + '/home/testSlack', function(data) {
+                    $('#testSlack-result').html(data);
                 });
             });
 
@@ -1733,7 +1734,6 @@ var SICKRAGE = {
                         $('#path_synology').show();
                     } else if (selectedProvider.toLowerCase() === 'rtorrent'){
                         client = 'rTorrent';
-                        $('#torrent_paused_option').hide();
                         $('#host_desc_torrent').text('URL to your rTorrent client (e.g. scgi://localhost:5000 <br> or https://localhost/rutorrent/plugins/httprpc/action.php)');
                         $('#torrent_verify_cert_option').show();
                         $('#torrent_verify_deluge').hide();
@@ -1847,6 +1847,14 @@ var SICKRAGE = {
                 torrent.host = $('#torrent_host').val();
                 torrent.username = $('#torrent_username').val();
                 torrent.password = $('#torrent_password').val();
+
+                if (torrent.method.toLowerCase() === 'putio') {
+                    $.get(srRoot + '/home/putio_authorize', function (data) {
+                        window.open(data);
+                    }).done(function() {
+                        $('#test_torrent_result').html('Confirm Authorization');
+                    });
+                }
 
                 $.get(srRoot + '/home/testTorrent', {
                     'torrent_method': torrent.method,
@@ -2000,6 +2008,10 @@ var SICKRAGE = {
                     resizePosters(ui.value);
                     $('.show-grid').isotope('layout');
                 }
+            });
+
+            $('#rootDirSelect').on('change', function(){
+                $('#rootDirForm').submit();
             });
 
             // This needs to be refined to work a little faster.
@@ -2220,6 +2232,7 @@ var SICKRAGE = {
             $('#srRoot').ajaxEpSearch({'colorRow': true});
 
             $('#srRoot').ajaxEpSubtitlesSearch();
+            $('#srRoot').ajaxRetrySubtitlesSearch();
 
             $('#seasonJump').on('change', function(){
                 var id = $('#seasonJump option:selected').val();
@@ -2680,7 +2693,7 @@ var SICKRAGE = {
         failedDownloads: function() {
             $("#failedTable:has(tbody tr)").tablesorter({
                 widgets: ['zebra'],
-                sortList: [[0,0]],
+                sortList: [[1,0]],
                 headers: { 3: { sorter: false } }
             });
             $('#limit').on('change', function(){
@@ -2898,23 +2911,37 @@ var SICKRAGE = {
 
         },
         viewlogs: function() {
-            $('#minLevel,#logFilter,#logSearch').on('keyup change', _.debounce(function () {
-                if ($('#logSearch').val().length > 0){
-                    $('#logFilter option[value="<NONE>"]').prop('selected', true);
-                    $('#minLevel option[value=5]').prop('selected', true);
+            $('#min_level,#log_filter,#log_search').on('keyup change', _.debounce(function () {
+                if ($('#log_search').val().length > 0){
+                    $('#log_filter option[value="<NONE>"]').prop('selected', true);
+                    $('#min_level option[value=5]').prop('selected', true);
                 }
-                $('#minLevel').prop('disabled', true);
-                $('#logFilter').prop('disabled', true);
+                $('#min_level').prop('disabled', true);
+                $('#log_filter').prop('disabled', true);
                 document.body.style.cursor='wait';
-                var url = srRoot + '/errorlogs/viewlog/?minLevel='+$('select[name=minLevel]').val()+'&logFilter='+$('select[name=logFilter]').val()+'&logSearch='+$('#logSearch').val();
-                $.get(url, function(data){
+                var url = srRoot + '/errorlogs/viewlog/';
+                var postData = 'min_level='+$('select[name=min_level]').val()+'&log_filter='+$('select[name=log_filter]').val()+'&log_search='+$('#log_search').val();
+                $.post(url, postData, function(data){
                     history.pushState('data', '', url);
                     $('pre').html($(data).find('pre').html());
-                    $('#minLevel').prop('disabled', false);
-                    $('#logFilter').prop('disabled', false);
+                    $('#min_level').prop('disabled', false);
+                    $('#log_filter').prop('disabled', false);
                     document.body.style.cursor='default';
                 });
             }, 500));
+
+            function updateLogData() {
+                var postData = 'min_level='+$('select[name=min_level]').val()+'&log_filter='+$('select[name=log_filter]').val()+'&log_search='+$('#log_search').val();
+                var url = srRoot + '/errorlogs/viewlog/';
+                $.post(url, postData, function (data) {
+                    $('pre').html($(data).find('pre').html());
+                });
+                setTimeout(function () {
+                    "use strict";
+                    updateLogData();
+                }, 500);
+            }
+            updateLogData();
         }
     },
     schedule: {
@@ -3047,6 +3074,40 @@ var SICKRAGE = {
                     }
                 });
             };
+
+            $('#saveDefaultsButton').on('click', function () {
+                var anyQualArray = [];
+                var bestQualArray = [];
+                $('#anyQualities option:selected').each(function (i, d) {
+                    anyQualArray.push($(d).val());
+                });
+                $('#bestQualities option:selected').each(function (i, d) {
+                    bestQualArray.push($(d).val());
+                });
+
+                $.get(srRoot + '/config/general/saveAddShowDefaults', {
+                    defaultStatus: $('#statusSelect').val(),
+                    anyQualities: anyQualArray.join(','),
+                    bestQualities: bestQualArray.join(','),
+                    defaultFlattenFolders: $('#flatten_folders').prop('checked'),
+                    subtitles: $('#subtitles').prop('checked'),
+                    anime: $('#anime').prop('checked'),
+                    scene: $('#scene').prop('checked'),
+                    defaultStatusAfter: $('#statusSelectAfter').val()
+                });
+
+                $(this).attr('disabled', true);
+            });
+
+            $('#statusSelect, #qualityPreset, #flatten_folders, #anyQualities, #bestQualities, #subtitles, #scene, #anime, #statusSelectAfter').change(function () {
+                $('#saveDefaultsButton').attr('disabled', false);
+            });
+
+            $('#qualityPreset').on('change', function() {
+                //fix issue #181 - force re-render to correct the height of the outer div
+                $('span.prev').click();
+                $('span.next').click();
+            });
         },
         index: function() {
 
@@ -3285,25 +3346,32 @@ var SICKRAGE = {
             });
 
             $('#submitShowDirs').on('click', function() {
-                var dirArr = [];
+                var submitForm = $('#addShowForm');
+                var selectedShows = false;
                 $('.dirCheck').each(function() {
                     if (this.checked === true) {
                         var show = $(this).attr('id');
                         var indexer = $(this).closest('tr').find('select').val();
-                        dirArr.push(encodeURIComponent(indexer + '|' + show));
+                        $('<input>', {
+                            type: 'hidden',
+                            name: 'shows_to_add',
+                            value: indexer + '|' + show
+                        }).appendTo(submitForm);
+                        selectedShows = true;
                     }
                 });
 
-                if (dirArr.length === 0) {
+                if (selectedShows === false) {
                     return false;
                 }
 
-                var url = srRoot + '/addShows/addExistingShows?promptForSettings=' + ($('#promptForSettings').prop('checked') ? 'on' : 'off') + '&shows_to_add=' + dirArr.join('&shows_to_add=');
-                if(url.length < 2083) {
-                    window.location.href = url;
-                } else {
-                    alert("You've selected too many shows, please uncheck some and try again. [" + url.length + "/2083 characters]");
-                }
+                $('<input>', {
+                    type: 'hidden',
+                    name: 'promptForSettings',
+                    value: $('#promptForSettings').prop('checked') ? 'on' : 'off'
+                }).appendTo(submitForm);
+
+                submitForm.submit();
             });
 
             function loadContent() {
@@ -3341,7 +3409,7 @@ var SICKRAGE = {
                 }
                 $('#rootDirStaticList').html('');
                 $('#rootDirs option').each(function(i, w) {
-                    $('#rootDirStaticList').append('<li class="ui-state-default ui-corner-all"><input type="checkbox" class="cb dir_check" id="' + $(w).val() + '" checked=checked> <label for="' + $(w).val() + '"><b>' + $(w).val() + '</b></label></li>');
+                    $('#rootDirStaticList').append('<li class="ui-state-default ui-corner-all"><input type="checkbox" class="cb dir_check" id="' + $(w).val() + '" checked=checked> <label for="' + $(w).val() + '">' + $(w).val() + '</label></li>');
                 });
                 loadContent();
             };
